@@ -1,0 +1,3 @@
+class DocumentAlreadyExist(Exception):
+    pass
+

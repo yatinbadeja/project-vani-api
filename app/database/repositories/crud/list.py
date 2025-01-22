@@ -1,0 +1,6 @@
+class AsyncListCrudRepository:
+    async def findAll(): ...
+
+    async def findAllByID(): ...
+
+
