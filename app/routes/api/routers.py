@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.Config import ENV_PROJECT
-from app.routes.api.v1.auth import router as auth_endpoints
+from app.routes.api.v1.auth import auth as auth_endpoints
 from app.routes.api.v1.admin import admin as admin_endponits
 
 

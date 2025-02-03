@@ -12,7 +12,7 @@ class BaseToken(BaseModel):
 class TokenData(BaseModel):
     user_id: str
     # email: str
-    user_type: Literal["admin", "hr", "sales", "coach"] = "coach"
+    user_type: Literal["admin", "user"] = "user"
     scope: Literal["login", "forgot_password"] = "login"
 
 

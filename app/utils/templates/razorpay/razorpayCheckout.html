@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Razorpay Integration</title>
+</head>
+
+<body>
+    <button id="rzp-button1">Pay</button>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        var options = {
+            "key": "rzp_test_8OAwSt5LgoTWog",
+            "amount": "50000",
+            "currency": "INR",
+            "name": "Kingdom of Chess",
+            "description": "Transaction",
+            "image": "https://example.com/your_logo",
+            "order_id":"order_OeWx5dZzUwhmAl",
+            "callback_url": "https://eneqd3r9zrjok.x.pipedream.net/",
+            "handler": function (response) {
+                console.log("response",response)
+                var payment_id = response.razorpay_payment_id;
+                var order_id = response.razorpay_order_id;
+                var signature = response.razorpay_signature;
+                fetch('/callback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "razorpay_payment_id": payment_id,
+                        "razorpay_order_id": order_id,
+                        "razorpay_signature": signature
+                    })
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            console.log(data)
+                            alert('Payment successful');
+                        } else {
+                            console.log(data)
+                            alert('Payment verification failed');
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+            },
+            "prefill": { //We recommend using the prefill parameter to auto-fill customer's contact information especially their phone number
+                "name": "Yatin Badeja", //your customer's name
+                "email": "yatinbadeja@gmail.com",
+                "contact": "8529407003" //Provide the customer's phone number for better conversion rates 
+            },
+            "notes": {
+                "address": "Udaipur,Rajasthan"
+            },
+            "theme": {
+                "color": "#3399cc"
+            }
+        };
+        var rzp1 = new Razorpay(options);
+        document.getElementById('rzp-button1').onclick = function (e) {
+            rzp1.open();
+            e.preventDefault();
+        }
+    </script>
+</body>
+
+</html>
