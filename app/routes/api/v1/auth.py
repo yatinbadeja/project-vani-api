@@ -27,7 +27,7 @@ from app.oauth2 import (
 )
 from app.schema.token import TokenData
 from app.utils import hashing
-
+from app.database.repositories.user import user_repo
 # from app.utils.mailer_module import mail, template
 from app.Config import ENV_PROJECT
 
@@ -36,7 +36,7 @@ from typing import Optional
 from app.schema.enums import UserTypeEnum
 
 
-router = APIRouter()
+auth = APIRouter()
 
 
 class TenantID(BaseModel):
@@ -48,15 +48,25 @@ class Email_Body(BaseModel):
     email: str
 
 
-@router.post("/login", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
+@auth.post("/login", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
 async def login(
     response: Response,
     user_type: UserTypeEnum,
     creds: OAuth2PasswordRequestForm = Depends(),
 ):
     user = None
-    if user_type == "admin":
-        user = {"_id": "", "password": ENV_PROJECT.ADMIN_PASSWORD}
+    if user_type == UserTypeEnum.ADMIN and creds.username == ENV_PROJECT.ADMIN_EMAIL:
+        user = {
+            "password": ENV_PROJECT.ADMIN_PASSWORD,
+            "_id": "",
+        }
+    elif user_type in [
+        UserTypeEnum.User
+    ]:
+        user = await user_repo.findOne(
+                {"email": creds.username},
+                {"_id", "password"},
+            )
 
     if hashing.verify_hash(creds.password, user["password"]):
         print("i am in hashing if statement")
@@ -71,11 +81,32 @@ async def login(
     raise http_exception.CredentialsInvalidException()
 
 
-@router.post("/refresh", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
+@auth.post("/refresh", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
 async def token_refresh(
     response: Response, refresh_token: str = Depends(get_refresh_token)
 ):
     token_generated = await get_new_access_token(refresh_token)
     set_cookies(response, token_generated.access_token, token_generated.refresh_token)
+    return {"ok": True}
+
+@auth.post("/logout", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
+async def logout(response: Response, refresh_token: str = Depends(get_refresh_token)):
+    await refresh_token_repo.deleteOne({"refresh_token": refresh_token})
+    response.set_cookie(
+        key="access_token",
+        value="",
+        httponly=True,
+        max_age=0,
+        secure=True,
+        samesite="none",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value="",
+        httponly=True,
+        max_age=0,
+        secure=True,
+        samesite="none",
+    )
     return {"ok": True}
 
