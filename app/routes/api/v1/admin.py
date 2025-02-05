@@ -40,7 +40,7 @@ async def create_user(
         user.email,
         template.Onboard(role=user.role.value,email=user.email,password=password)
     )
-    
+
     inserted_dict =  {}
     
     keys = ["userName","password","email","role"]
