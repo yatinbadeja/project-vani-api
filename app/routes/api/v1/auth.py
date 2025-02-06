@@ -75,7 +75,7 @@ async def login(
         )
         token_generated = await create_access_token(token_data)
         set_cookies(response, token_generated.access_token, token_generated.refresh_token)
-        return {"ok": True}
+        return {"ok": True, "accessToken":token_generated.access_token}
     print("i am not in hashing if statement")
 
     raise http_exception.CredentialsInvalidException()

@@ -16,7 +16,7 @@ class UserDB(User):
     created_at : datetime.datetime = Field(default_factory=lambda:datetime.datetime.now(datetime.timezone.utc))
     updated_at : datetime.datetime = Field(default_factory=lambda:datetime.datetime.now(datetime.timezone.utc))
     
-# class UserCreate(BaseModel):
-#     userName : Username
-#     email : str 
-#     role : UserRole = UserRole.STOCKIST
+class UserCreate(BaseModel):
+    userName : Username
+    email : str 
+    role : UserRole = UserRole.STOCKIST
