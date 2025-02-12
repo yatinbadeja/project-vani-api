@@ -1,15 +1,15 @@
 from pydantic import BaseModel, Field, EmailStr
 import datetime
 from uuid import uuid4
+from app.database.models.entity import phoneNumber,Name,Address
 
 # Base Chemist Schema
 class Chemist(BaseModel):
     user_id: str
-    name: str
-    email: EmailStr
-    phone_number: int
+    name: Name
+    phone_number: phoneNumber
     shop_name: str
-    location: str  # Assuming Address is stored as a string
+    address : Address # Assuming Address is stored as a string
     licence_number: str
 
 # Database Schema (Includes ID and Timestamps)
@@ -20,10 +20,8 @@ class ChemistDB(Chemist):
 
 # Schema for Creating a New Chemist (Excludes chemist_id and timestamps)
 class ChemistCreate(BaseModel):
-    user_id: str
-    name: str
-    email: EmailStr
-    phone_number: int
+    name: Name
+    phone_number: phoneNumber
     shop_name: str
-    location: str
+    address: Address
     licence_number: str
