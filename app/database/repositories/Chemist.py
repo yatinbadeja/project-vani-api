@@ -5,7 +5,7 @@ from app.database.repositories.crud.base import PageRequest, Meta,PaginatedRespo
 class ChemistRepo(BaseMongoDbCrud[ChemistDB]):
     def __init__(self):
         super().__init__(
-            ENV_PROJECT.MONGO_DATABASE, "Chemist", unique_attributes=["email"]
+            ENV_PROJECT.MONGO_DATABASE, "Chemist", unique_attributes=[]
         )
 
     async def new(self, sub: Chemist):

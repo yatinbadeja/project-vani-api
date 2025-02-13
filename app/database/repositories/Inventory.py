@@ -5,7 +5,7 @@ from .crud.base_mongo_crud import BaseMongoDbCrud
 class InventoryRepo(BaseMongoDbCrud[InventoryDB]):
     def __init__(self):
         super().__init__(
-            ENV_PROJECT.MONGO_DATABASE, "Inventory", unique_attributes=["chemist_id", "product_id"]
+            ENV_PROJECT.MONGO_DATABASE, "Inventory", unique_attributes=[]
         )
 
     async def new(self, sub: Inventory):
