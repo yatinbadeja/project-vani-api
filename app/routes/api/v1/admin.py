@@ -259,5 +259,44 @@ async def update_chemist(
     }
 
 
+
+@admin.get('/get/chemist', response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
+async def get_chemist(
+    user_id: str,
+    current_user: TokenData = Depends(get_current_user),
+):
+    if current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
     
+    chemist_data = await chemist_repo.findOne({"user_id": user_id})
+    if chemist_data is None:
+        raise http_exception.ResourceNotFoundException()
+    
+    return {
+        "success": True,
+        "message": "Chemist data fetched successfully",
+        "data": chemist_data
+    }
+
+
+
+@admin.get('/get/stockist', response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
+async def get_stockist(
+    user_id: str,
+    current_user: TokenData = Depends(get_current_user),
+):
+    if current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+    
+    stockist_data = await stockist_repo.findOne({"user_id": user_id})
+    if stockist_data is None:
+        raise http_exception.ResourceNotFoundException()
+    
+    return {
+        "success": True,
+        "message": "Chemist data fetched successfully",
+        "data": stockist_data
+    }
+
+
 
