@@ -216,7 +216,7 @@ async def update_stockist(
 
 
 @admin.put(
-    "/update/Chemist/{user_id}",
+    "/update/chemist/{user_id}",
     response_class=ORJSONResponse,
     status_code=status.HTTP_200_OK,
 )
