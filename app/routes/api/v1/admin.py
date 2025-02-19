@@ -257,7 +257,114 @@ async def update_chemist(
         "success":True,
         "message":"Chemist values updated successfully",
     }
+    
+@admin.get("/view/stockist/profile/{user_id}",response_class=ORJSONResponse)
+async def viewStockistProfile(
+    current_user : TokenData = Depends(get_current_user),
+    user_id : str = ""
+):
+    if current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+    
+    userExists = await user_repo.findOne({"_id":user_id,"role":"Stockist"})
+    if userExists is None:
+        raise http_exception.ResourceNotFoundException()
+    
+    pipeline = [
+        {
+            "$match":{
+                "_id":user_id
+            }
+        },
+        {
+            "$lookup":{
+                "from":"Stockist",
+                "localField":"_id",
+                "foreignField":"user_id",
+                "as":"StockistInfo"
+            }
+        },
+        {
+            "$set":{
+                "StockistInfo":{
+                    "$cond":[{"$eq":[{"$size":"$StockistInfo"},0]},None,{"$arrayElemAt":["$StockistInfo",0]}]
+                }
+            }
+        },
+        {
+            "$project":{
+                "password":0,
+                "created_at":0,
+                "updated_at":0,
+                "StockistInfo._id":0,
+                "StockistInfo.user_id":0,
+                "StockistInfo.created_at":0,
+                "StockistInfo.updated_at":0,
+            }
+        }
+    ]
+    
+    response = await user_repo.collection.aggregate(pipeline=pipeline).to_list(None)
+    
+    return {
+        "success":True,
+        "message":"Stockist Profile Fetched Successfully",
+        "data":response
+    }
 
+@admin.get("/view/chemist/profile/{user_id}",response_class=ORJSONResponse)
+async def viewChemistProfile(
+    current_user : TokenData = Depends(get_current_user),
+    user_id : str = ""
+):
+    if current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+    
+    userExists = await user_repo.findOne({"_id":user_id,"role":"Chemist"})
+    if userExists is None:
+        raise http_exception.ResourceNotFoundException()
+    
+    pipeline = [
+        {
+            "$match":{
+                "_id":user_id
+            }
+        },
+        {
+            "$lookup":{
+                "from":"Chemist",
+                "localField":"_id",
+                "foreignField":"user_id",
+                "as":"ChemistInfo"
+            }
+        },
+        {
+            "$set":{
+                "ChemistInfo":{
+                    "$cond":[{"$eq":[{"$size":"$ChemistInfo"},0]},None,{"$arrayElemAt":["$ChemistInfo",0]}]
+                }
+            }
+        },
+        {
+            "$project":{
+                "password":0,
+                "created_at":0,
+                "updated_at":0,
+                "ChemistInfo._id":0,
+                "ChemistInfo.user_id":0,
+                "ChemistInfo.created_at":0,
+                "ChemistInfo.updated_at":0,
+            }
+        }
+    ]
+    
+    response = await user_repo.collection.aggregate(pipeline=pipeline).to_list(None)
+    
+    return {
+        "success":True,
+        "message":"Chemist Profile Fetched Successfully",
+        "data":response
+    }
 
     
 
