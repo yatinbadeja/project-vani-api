@@ -21,6 +21,7 @@ class Product(BaseModel):
     description: str
     expiry_date: datetime.datetime
 
+
 # Database Schema
 class ProductDB(Product):
     product_id: str = Field(default_factory=lambda: str(uuid4()), alias="_id")
