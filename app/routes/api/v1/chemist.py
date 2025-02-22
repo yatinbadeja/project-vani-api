@@ -9,7 +9,7 @@ import app.http_exception as http_exception
 from app.oauth2 import get_current_user
 
 
-from app.schema.token import Tok6enData
+from app.schema.token import TokenData
 
 from app.database.models.Product import ProductCreate
 from app.database.repositories.Product import product_repo
@@ -60,7 +60,7 @@ async def getAllProducts(
     if current_user.user_type != "user":
         raise http_exception.CredentialsInvalidException()
     
-    products = await product_repo.
+    products = await product_repo.get_all()
     return {
         "success": True,
         "data": products
