@@ -55,7 +55,7 @@ async def deleteProduct(
     product_id: str,
     current_user: TokenData = Depends(get_current_user),
 ):
-    if current_user.user_type != "user":
+    if current_user.user_type != "user" and current_user.user_type != "admin":
         raise http_exception.CredentialsInvalidException()
     
     product = await product_repo.get_by_id(product_id)
