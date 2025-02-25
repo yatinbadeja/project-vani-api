@@ -402,3 +402,24 @@ async def get_stockist(
         "message": "Chemist data fetched successfully",
         "data": stockist_data,
     }
+
+@admin.get("/get/all/chemist", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
+async def getChemist(
+    current_user : TokenData = Depends(get_current_user),
+):
+    if current_user.user_type != "user" and current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+    
+    products = await chemist_repo.collection.aggregate([
+        {
+            "$project":{
+                "created_at":0,
+                "updated_at":0,
+                "licence_number":0
+            }
+        }
+    ]).to_list(None)
+    return {
+        "success":True,
+        "data":products
+    }

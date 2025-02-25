@@ -1,5 +1,5 @@
 from app.Config import ENV_PROJECT
-from app.database.models.Product import Product, ProductDB
+from app.database.models.Product import product, ProductDB
 from .crud.base_mongo_crud import BaseMongoDbCrud
 
 class ProductRepo(BaseMongoDbCrud[ProductDB]):
@@ -8,7 +8,7 @@ class ProductRepo(BaseMongoDbCrud[ProductDB]):
             ENV_PROJECT.MONGO_DATABASE, "Product", unique_attributes=["product_name"]
         )
 
-    async def new(self, sub: Product):
+    async def new(self, sub: product):
         return await self.save(
             ProductDB(**sub.model_dump())
         )

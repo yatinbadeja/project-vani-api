@@ -7,7 +7,7 @@ class Inventory(BaseModel):
     chemist_id: str
     product_id: str
     quantity: int
-    last_restock_date: datetime.date
+    last_restock_date: datetime.datetime
 
 # Database Schema (Includes ID and Timestamps)
 class InventoryDB(Inventory):
@@ -20,4 +20,4 @@ class InventoryCreate(BaseModel):
     chemist_id: str
     product_id: str
     quantity: int
-    last_restock_date: datetime.date
+    last_restock_date: datetime.datetime
