@@ -58,11 +58,11 @@ async def deleteProduct(
     if current_user.user_type != "user" and current_user.user_type != "admin":
         raise http_exception.CredentialsInvalidException()
     
-    product = await product_repo.get_by_id(product_id)
+    product = await product_repo.findOne({"_id":product_id})
     if not product:
         raise http_exception.NotFoundException(detail="Product Not Found")
 
-    await product_repo.delete(product_id)
+    await product_repo.deleteById(product_id)
 
     return {
         "success": True,
