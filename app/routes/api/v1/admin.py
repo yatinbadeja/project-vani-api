@@ -281,13 +281,13 @@ async def viewStockistProfile(
                 "from":"Stockist",
                 "localField":"_id",
                 "foreignField":"user_id",
-                "as":"StockistInfo"
+                "as":"StockistData"
             }
         },
         {
             "$set":{
-                "StockistInfo":{
-                    "$cond":[{"$eq":[{"$size":"$StockistInfo"},0]},None,{"$arrayElemAt":["$StockistInfo",0]}]
+                "StockistData":{
+                    "$cond":[{"$eq":[{"$size":"$StockistData"},0]},None,{"$arrayElemAt":["$StockistData",0]}]
                 }
             }
         },
@@ -296,10 +296,10 @@ async def viewStockistProfile(
                 "password":0,
                 "created_at":0,
                 "updated_at":0,
-                "StockistInfo._id":0,
-                "StockistInfo.user_id":0,
-                "StockistInfo.created_at":0,
-                "StockistInfo.updated_at":0,
+                "StockistData._id":0,
+                "StockistData.user_id":0,
+                "StockistData.created_at":0,
+                "StockistData.updated_at":0,
             }
         }
     ]
@@ -335,13 +335,13 @@ async def viewChemistProfile(
                 "from":"Chemist",
                 "localField":"_id",
                 "foreignField":"user_id",
-                "as":"ChemistInfo"
+                "as":"ChemistData"
             }
         },
         {
             "$set":{
-                "ChemistInfo":{
-                    "$cond":[{"$eq":[{"$size":"$ChemistInfo"},0]},None,{"$arrayElemAt":["$ChemistInfo",0]}]
+                "ChemistData":{
+                    "$cond":[{"$eq":[{"$size":"$ChemistData"},0]},None,{"$arrayElemAt":["$ChemistData",0]}]
                 }
             }
         },
@@ -350,10 +350,10 @@ async def viewChemistProfile(
                 "password":0,
                 "created_at":0,
                 "updated_at":0,
-                "ChemistInfo._id":0,
-                "ChemistInfo.user_id":0,
-                "ChemistInfo.created_at":0,
-                "ChemistInfo.updated_at":0,
+                "ChemistData._id":0,
+                "ChemistData.user_id":0,
+                "ChemistData.created_at":0,
+                "ChemistData.updated_at":0,
             }
         }
     ]
