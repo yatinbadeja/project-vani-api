@@ -19,8 +19,11 @@ from app.database.repositories.crud.base import SortingOrder, Sort, Page, PageRe
 from fastapi import Query
 from app.database.repositories.user import user_repo
 from app.database.models.Stockist import StockistCreate
+from app.database.models.Product import ProductCreate
 from app.database.models.Stockist import Stockist
+from app.database.models.Product import product
 from app.database.repositories.Stockist import stockist_repo
+from app.database.repositories.Product import product_repo
 from app.database.repositories.Chemist import chemist_repo
 from app.database.models.Chemist import Chemist, ChemistCreate
 
@@ -66,6 +69,7 @@ async def create_user(
 async def view_stockist_user(
     current_user: TokenData = Depends(get_current_user),
     search: str = None,
+    state: str = None,
     page_no: int = Query(1, ge=1),
     limit: int = Query(10, le=20),
     sortField: str = "created_at",
@@ -78,7 +82,9 @@ async def view_stockist_user(
     sort = Sort(sort_field=sortField, sort_order=sortOrder)
     page_request = PageRequest(paging=page, sorting=sort)
 
-    result = await user_repo.viewAllStockist(search=search, pagination=page_request)
+    result = await user_repo.viewAllStockist(
+        search=search, state=state, pagination=page_request
+    )
 
     return {"success": True, "message": "Data Fetched Successfully...", "data": result}
 
@@ -121,6 +127,7 @@ async def create_stockist(
 async def view_chemist_user(
     current_user: TokenData = Depends(get_current_user),
     search: str = None,
+    state: str = None,
     page_no: int = Query(1, ge=1),
     limit: int = Query(10, le=20),
     sortField: str = "created_at",
@@ -133,7 +140,9 @@ async def view_chemist_user(
     sort = Sort(sort_field=sortField, sort_order=sortOrder)
     page_request = PageRequest(paging=page, sorting=sort)
 
-    result = await user_repo.viewAllChemist(search=search, pagination=page_request)
+    result = await user_repo.viewAllChemist(
+        search=search, state=state, pagination=page_request
+    )
 
     return {"success": True, "message": "Data Fetched Successfully...", "data": result}
 
@@ -257,169 +266,219 @@ async def update_chemist(
         "success": True,
         "message": "Chemist values updated successfully",
     }
-    
-@admin.get("/view/stockist/profile/{user_id}",response_class=ORJSONResponse)
+
+
+@admin.get("/view/stockist/profile/{user_id}", response_class=ORJSONResponse)
 async def viewStockistProfile(
-    current_user : TokenData = Depends(get_current_user),
-    user_id : str = ""
+    current_user: TokenData = Depends(get_current_user), user_id: str = ""
 ):
     if current_user.user_type != "admin":
         raise http_exception.CredentialsInvalidException()
-    
-    userExists = await user_repo.findOne({"_id":user_id,"role":"Stockist"})
+
+    userExists = await user_repo.findOne({"_id": user_id, "role": "Stockist"})
     if userExists is None:
         raise http_exception.ResourceNotFoundException()
-    
+
     pipeline = [
+        {"$match": {"_id": user_id}},
         {
-            "$match":{
-                "_id":user_id
+            "$lookup": {
+                "from": "Stockist",
+                "localField": "_id",
+                "foreignField": "user_id",
+                "as": "StockistData",
             }
         },
         {
-            "$lookup":{
-                "from":"Stockist",
-                "localField":"_id",
-                "foreignField":"user_id",
-                "as":"StockistData"
-            }
-        },
-        {
-            "$set":{
-                "StockistData":{
-                    "$cond":[{"$eq":[{"$size":"$StockistData"},0]},None,{"$arrayElemAt":["$StockistData",0]}]
+            "$set": {
+                "StockistData": {
+                    "$cond": [
+                        {"$eq": [{"$size": "$StockistData"}, 0]},
+                        None,
+                        {"$arrayElemAt": ["$StockistData", 0]},
+                    ]
                 }
             }
         },
         {
-            "$project":{
-                "password":0,
-                "created_at":0,
-                "updated_at":0,
-                "StockistData._id":0,
-                "StockistData.user_id":0,
-                "StockistData.created_at":0,
-                "StockistData.updated_at":0,
+            "$project": {
+                "password": 0,
+                "created_at": 0,
+                "updated_at": 0,
+                "StockistData._id": 0,
+                "StockistData.user_id": 0,
+                "StockistData.created_at": 0,
+                "StockistData.updated_at": 0,
             }
-        }
+        },
     ]
-    
+
     response = await user_repo.collection.aggregate(pipeline=pipeline).to_list(None)
-    
+
     return {
-        "success":True,
-        "message":"Stockist Profile Fetched Successfully",
-        "data":response
+        "success": True,
+        "message": "Stockist Profile Fetched Successfully",
+        "data": response,
     }
 
-@admin.get("/view/chemist/profile/{user_id}",response_class=ORJSONResponse)
+
+@admin.get("/view/chemist/profile/{user_id}", response_class=ORJSONResponse)
 async def viewChemistProfile(
-    current_user : TokenData = Depends(get_current_user),
-    user_id : str = ""
+    current_user: TokenData = Depends(get_current_user), user_id: str = ""
 ):
     if current_user.user_type != "admin":
         raise http_exception.CredentialsInvalidException()
-    
-    userExists = await user_repo.findOne({"_id":user_id,"role":"Chemist"})
+
+    userExists = await user_repo.findOne({"_id": user_id, "role": "Chemist"})
     if userExists is None:
         raise http_exception.ResourceNotFoundException()
-    
+
     pipeline = [
+        {"$match": {"_id": user_id}},
         {
-            "$match":{
-                "_id":user_id
+            "$lookup": {
+                "from": "Chemist",
+                "localField": "_id",
+                "foreignField": "user_id",
+                "as": "ChemistData",
             }
         },
         {
-            "$lookup":{
-                "from":"Chemist",
-                "localField":"_id",
-                "foreignField":"user_id",
-                "as":"ChemistData"
-            }
-        },
-        {
-            "$set":{
-                "ChemistData":{
-                    "$cond":[{"$eq":[{"$size":"$ChemistData"},0]},None,{"$arrayElemAt":["$ChemistData",0]}]
+            "$set": {
+                "ChemistData": {
+                    "$cond": [
+                        {"$eq": [{"$size": "$ChemistData"}, 0]},
+                        None,
+                        {"$arrayElemAt": ["$ChemistData", 0]},
+                    ]
                 }
             }
         },
         {
-            "$project":{
-                "password":0,
-                "created_at":0,
-                "updated_at":0,
-                "ChemistData._id":0,
-                "ChemistData.user_id":0,
-                "ChemistData.created_at":0,
-                "ChemistData.updated_at":0,
+            "$project": {
+                "password": 0,
+                "created_at": 0,
+                "updated_at": 0,
+                "ChemistData._id": 0,
+                "ChemistData.user_id": 0,
+                "ChemistData.created_at": 0,
+                "ChemistData.updated_at": 0,
             }
-        }
+        },
     ]
-    
+
     response = await user_repo.collection.aggregate(pipeline=pipeline).to_list(None)
-    
-    return {
-        "success":True,
-        "message":"Chemist Profile Fetched Successfully",
-        "data":response
-    }
-
-@admin.get("/get/chemist", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
-async def get_chemist(
-    user_id: str,
-    current_user: TokenData = Depends(get_current_user),
-):
-    if current_user.user_type != "admin":
-        raise http_exception.CredentialsInvalidException()
-
-    chemist_data = await chemist_repo.findOne({"user_id": user_id})
-    if chemist_data is None:
-        raise http_exception.ResourceNotFoundException()
 
     return {
         "success": True,
-        "message": "Chemist data fetched successfully",
-        "data": chemist_data,
+        "message": "Chemist Profile Fetched Successfully",
+        "data": response,
     }
 
 
-@admin.get("/get/stockist", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
-async def get_stockist(
-    user_id: str,
+@admin.post(
+    "/create/product", response_class=ORJSONResponse, status_code=status.HTTP_200_OK
+)
+async def createProduct(
+    product_: ProductCreate,
     current_user: TokenData = Depends(get_current_user),
-):
-    if current_user.user_type != "admin":
-        raise http_exception.CredentialsInvalidException()
-
-    stockist_data = await stockist_repo.findOne({"user_id": user_id})
-    if stockist_data is None:
-        raise http_exception.ResourceNotFoundException()
-
-    return {
-        "success": True,
-        "message": "Chemist data fetched successfully",
-        "data": stockist_data,
-    }
-
-@admin.get("/get/all/chemist", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
-async def getChemist(
-    current_user : TokenData = Depends(get_current_user),
 ):
     if current_user.user_type != "user" and current_user.user_type != "admin":
         raise http_exception.CredentialsInvalidException()
-    
-    products = await chemist_repo.collection.aggregate([
-        {
-            "$project":{
-                "created_at":0,
-                "updated_at":0,
-                "licence_number":0
-            }
-        }
-    ]).to_list(None)
+
+    product__ = product_.model_dump()
+    await product_repo.new(product(**product__))
+
+    return {"success": True, "message": "Product Created Successfully"}
+
+
+@admin.get(
+    "/view/all/product", response_class=ORJSONResponse, status_code=status.HTTP_200_OK
+)
+async def view_all_product(
+    current_user: TokenData = Depends(get_current_user),
+    search: str = None,
+    page_no: int = Query(1, ge=1),
+    limit: int = Query(10, le=20),
+    sortField: str = "created_at",
+    sortOrder: SortingOrder = SortingOrder.DESC,
+):
+    if current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+
+    page = Page(page=page_no, limit=limit)
+    sort = Sort(sort_field=sortField, sort_order=sortOrder)
+    page_request = PageRequest(paging=page, sorting=sort)
+
+    result = await product_repo.viewAllProduct(search=search, pagination=page_request)
+
+    return {"success": True, "message": "Data Fetched Successfully...", "data": result}
+
+
+@admin.get(
+    "/get/product/{product_id}",
+    response_class=ORJSONResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def getProduct(
+    product_id: str,
+    current_user: TokenData = Depends(get_current_user),
+):
+    if current_user.user_type != "user" and current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+
+    product = await product_repo.findOne(
+        {"_id": product_id}, {"created_at": 0, "updated_at": 0}
+    )
+    if not product:
+        raise http_exception
+
+    return {"success": True, "data": product}
+
+
+@admin.delete(
+    "/delete/product/{product_id}",
+    response_class=ORJSONResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def deleteProduct(
+    product_id: str,
+    current_user: TokenData = Depends(get_current_user),
+):
+    if current_user.user_type != "user" and current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+
+    product = await product_repo.findOne({"_id": product_id})
+    if not product:
+        raise http_exception.NotFoundException(detail="Product Not Found")
+
+    await product_repo.deleteById(product_id)
+
+    return {"success": True, "message": "Product Deleted Successfully"}
+
+
+@admin.put(
+    "/update/product/{product_id}",
+    response_class=ORJSONResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def updateProduct(
+    current_user: TokenData = Depends(get_current_user),
+    product: ProductCreate = None,
+    product_id: str = "",
+):
+    if current_user.user_type != "user" and current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+
+    productExists = await product_repo.findOne({"_id": product_id})
+    if productExists is None:
+        raise http_exception.ResourceNotFoundException()
+
+    updated_dict = {k: v for k, v in product.dict().items() if v not in [None, ""]}
+
+    await product_repo.update_one({"_id": product_id}, {"$set": updated_dict})
+
     return {
-        "success":True,
-        "data":products
+        "success": True,
+        "message": "Product Updated Successfully",
     }

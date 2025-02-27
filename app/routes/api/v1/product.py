@@ -7,7 +7,6 @@ from app.schema.token import TokenData
 import app.http_exception as http_exception
 from app.oauth2 import get_current_user
 
-
 from app.schema.token import TokenData
 
 from app.database.models.Product import ProductCreate
@@ -90,6 +89,8 @@ async def updateProduct(
         "success":True,
         "message":"Product Updated Successfully",
     }
+ 
+ 
     
 @Product.get("/get/products", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
 async def getProducts(
