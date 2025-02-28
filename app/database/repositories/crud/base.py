@@ -59,7 +59,7 @@ class PageRequest(BaseModel):
 
 class Meta(Page):
     total: int
-    unique_states: List[Any]
+    unique: List[Any]
 
 
 class PaginatedResponse(BaseModel):

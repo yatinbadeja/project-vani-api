@@ -83,7 +83,7 @@ async def view_stockist_user(
     page_request = PageRequest(paging=page, sorting=sort)
 
     result = await user_repo.viewAllStockist(
-        search=search, state=state, pagination=page_request
+        search=search, state=state, pagination=page_request, sort=sort
     )
 
     return {"success": True, "message": "Data Fetched Successfully...", "data": result}
@@ -141,7 +141,10 @@ async def view_chemist_user(
     page_request = PageRequest(paging=page, sorting=sort)
 
     result = await user_repo.viewAllChemist(
-        search=search, state=state, pagination=page_request
+        search=search,
+        state=state,
+        pagination=page_request,
+        sort=sort,
     )
 
     return {"success": True, "message": "Data Fetched Successfully...", "data": result}
@@ -398,8 +401,9 @@ async def createProduct(
 async def view_all_product(
     current_user: TokenData = Depends(get_current_user),
     search: str = None,
+    category: str = None,
     page_no: int = Query(1, ge=1),
-    limit: int = Query(10, le=20),
+    limit: int = Query(12, le=24),
     sortField: str = "created_at",
     sortOrder: SortingOrder = SortingOrder.DESC,
 ):
@@ -410,7 +414,9 @@ async def view_all_product(
     sort = Sort(sort_field=sortField, sort_order=sortOrder)
     page_request = PageRequest(paging=page, sorting=sort)
 
-    result = await product_repo.viewAllProduct(search=search, pagination=page_request)
+    result = await product_repo.viewAllProduct(
+        search=search, category=category, pagination=page_request, sort=sort
+    )
 
     return {"success": True, "message": "Data Fetched Successfully...", "data": result}
 
