@@ -81,6 +81,60 @@ async def login(
     raise http_exception.CredentialsInvalidException()
 
 
+@auth.get("/current/user", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
+async def get_current_user_details(
+    current_user: TokenData = Depends(get_current_user),
+):
+    user = await user_repo.findOne({"_id": current_user.user_id})
+    if user is None:
+        raise http_exception.ResourceNotFoundException()
+
+    user_role = user["role"]
+
+    pipeline = [
+        {"$match": {"_id": current_user.user_id}},
+        {
+            "$lookup": {
+                "from": user_role,
+                "localField": "_id",
+                "foreignField": "user_id",
+                "as": "UserData",
+            }
+        },
+        {
+            "$set": {
+                "UserData": {
+                    "$cond": [
+                        {"$eq": [{"$size": "$UserData"}, 0]},
+                        None,
+                        {"$arrayElemAt": ["$UserData", 0]},
+                    ]
+                }
+            }
+        },
+        {
+            "$project": {
+                "password": 0,
+                "created_at": 0,
+                "updated_at": 0,
+                "UserData._id": 0,
+                "UserData.user_id": 0,
+                "UserData.created_at": 0,
+                "UserData.updated_at": 0,
+            }
+        },
+    ]
+
+    response = await user_repo.collection.aggregate(pipeline=pipeline).to_list(None)
+
+    return {
+        "success": True,
+        "message": "User Profile Fetched Successfully",
+        "data": response,
+    }
+
+
+
 @auth.post("/refresh", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
 async def token_refresh(
     response: Response, refresh_token: str = Depends(get_refresh_token)
