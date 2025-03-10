@@ -64,9 +64,9 @@ async def login(
         UserTypeEnum.User
     ]:
         user = await user_repo.findOne(
-                {"email": creds.username},
-                {"_id", "password"},
-            )
+            {"email": creds.username},
+            {"_id", "password"},
+        )
 
     if hashing.verify_hash(creds.password, user["password"]):
         print("i am in hashing if statement")
@@ -75,7 +75,7 @@ async def login(
         )
         token_generated = await create_access_token(token_data)
         set_cookies(response, token_generated.access_token, token_generated.refresh_token)
-        return {"ok": True, "accessToken":token_generated.access_token}
+        return {"ok": True, "accessToken": token_generated.access_token}
     print("i am not in hashing if statement")
 
     raise http_exception.CredentialsInvalidException()
@@ -87,7 +87,40 @@ async def get_current_user_details(
 ):
     user = await user_repo.findOne({"_id": current_user.user_id})
     if user is None:
-        raise http_exception.ResourceNotFoundException()
+        if current_user.user_type == "admin":
+            return {
+                "success": True,
+                "message": "User Profile Fetched Successfully",
+                "data": [
+                    {
+                        "_id": "adim-0001",
+                        "email": "admin@dristi.com",
+                        "role": "admin",
+                        "UserData": {
+                            "name": {
+                                 "first_name": "Jinesh",
+                                 "middle_name": "",
+                                 "last_name": "Prajapat"
+                            },
+                            "phone_number": {
+                                "country_code": "+91",
+                                "phone_number": "8905009854"
+                            },
+                            "shop_name": "Pharma",
+                            "address": {
+                                "street_address": "Rishabhdeo,",
+                                "street_address_line_2": "",
+                                "city": "Udaipur, Rajasthan",
+                                "state": "Rajasthan",
+                                "zip_code": "313908"
+                            },
+                            "licence_number": "LX56834838642"
+                        }
+                    }
+                ],
+            }
+        else:
+            raise http_exception.ResourceNotFoundException()
 
     user_role = user["role"]
 
@@ -134,7 +167,6 @@ async def get_current_user_details(
     }
 
 
-
 @auth.post("/refresh", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
 async def token_refresh(
     response: Response, refresh_token: str = Depends(get_refresh_token)
@@ -142,6 +174,7 @@ async def token_refresh(
     token_generated = await get_new_access_token(refresh_token)
     set_cookies(response, token_generated.access_token, token_generated.refresh_token)
     return {"ok": True}
+
 
 @auth.post("/logout", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
 async def logout(response: Response, refresh_token: str = Depends(get_refresh_token)):
@@ -163,4 +196,3 @@ async def logout(response: Response, refresh_token: str = Depends(get_refresh_to
         samesite="none",
     )
     return {"ok": True}
-
