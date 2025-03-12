@@ -112,4 +112,31 @@ async def getProducts(
         "data":products
     }
     
+@Product.get("/view/products/with_id", response_class=ORJSONResponse, status_code=status.HTTP_200_OK)
+async def getProducts(
+    current_user : TokenData = Depends(get_current_user),
+):
+    if current_user.user_type != "user" and current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+    
+    products = await product_repo.collection.aggregate([
+        {
+            "$project":{
+                "storage_requirement":0,
+                "no_of_tablets_per_pack":0,
+                "category":0,
+                "state":0,
+                "expiry_date":0,
+                "description":0,
+                "created_at":0,
+                "updated_at":0
+            }
+        }
+    ]).to_list(None)
+    return {
+        "success":True,
+        "data":products
+    }
+    
+
 
