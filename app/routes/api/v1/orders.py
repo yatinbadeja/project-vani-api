@@ -3,7 +3,7 @@ from fastapi import APIRouter, status, Depends
 from fastapi.responses import ORJSONResponse
 from app.schema import token
 from app.schema.token import TokenData
-from app.database.models.Orders import OrderStatus,Orders1,OrdersCreate
+from app.database.models.Orders import OrderStatus, Orders1, OrdersCreate
 from app.oauth2 import get_current_user
 import app.http_exception as http_exception
 from app.database.repositories.Stockist import stockist_repo
@@ -33,7 +33,7 @@ async def createUserOrders(
     stockistExists = await stockist_repo.findOne({"_id": order.stockist_id})
     if stockistExists is None:
         raise http_exception.ResourceNotFoundException()
-    print('order', order)
+    print("order", order)
     chemist = await chemist_repo.findOne({"user_id": current_user.user_id})
 
     date = datetime.datetime.strptime(order.order_date, "%Y-%m-%d")
@@ -42,15 +42,16 @@ async def createUserOrders(
     data["order_date"] = date
     data["status"] = status.value
     data["chemist_id"] = chemist["_id"]
-    response =  await orders_repo.new(Orders1(**data))
+    response = await orders_repo.new(Orders1(**data))
     print(response)
     return {
-        "success":True,
-        "message":"Data Inserted Successfully",
-        "data":response.order_iD
+        "success": True,
+        "message": "Data Inserted Successfully",
+        "data": response.order_id,
     }
-    
-@OrdersRouter.get("/get/users/orders/{chemist_id}",response_class=ORJSONResponse)
+
+
+@OrdersRouter.get("/get/users/orders/{chemist_id}", response_class=ORJSONResponse)
 async def getUserOrders(
     current_user: TokenData = Depends(get_current_user), chemist_id: str = ""
 ):
