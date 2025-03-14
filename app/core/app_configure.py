@@ -23,10 +23,14 @@ def configure_middleware(app: FastAPI):
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
-            "https://dristidocs.vercel.app/"
+            "https://dristidocs.vercel.app/",
             "http://dristidocs.vercel.app/",
             "http://localhost:5173",
             "https://localhost:5173",
+            "http://localhost:3001",
+            "https://localhost:3001",
+            "http://localhost:3000",
+            "https://localhost:3000",
             "https://dev.admin.kingdomofchess.com",
             "https://dev.sales.kingdomofchess.com",
             "https://dev.hr.kingdomofchess.com",
