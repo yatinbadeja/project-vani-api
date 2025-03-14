@@ -3,7 +3,7 @@ from fastapi import APIRouter,status,Depends
 from fastapi.responses import ORJSONResponse
 from app.schema import token
 from app.schema.token import TokenData
-from app.database.models.Orders import OrderStatus,Orders,OrdersCreate
+from app.database.models.Orders import OrderStatus,Orders1,OrdersCreate
 from app.oauth2 import get_current_user
 import app.http_exception as http_exception
 from app.database.repositories.Stockist import stockist_repo
@@ -15,6 +15,7 @@ from app.database.repositories.Order_Details import order_details_repo
 import asyncio
 from app.database.repositories.Product import product_repo
 from app.database.models.Order_Details import Orders
+
 OrdersRouter = APIRouter()
 
 @OrdersRouter.post("/create/user/orders",response_class=ORJSONResponse,status_code=status.HTTP_200_OK)
@@ -41,11 +42,12 @@ async def createUserOrders(
     data["order_date"] = date
     data["status"] = status.value
     data["chemist_id"] = chemist["_id"]
-    await orders_repo.new(Orders(**data))
-
+    response =  await orders_repo.new(Orders1(**data))
+    print(response)
     return {
         "success":True,
         "message":"Data Inserted Successfully",
+        "data":response.order_iD
     }
     
 @OrdersRouter.get("/get/users/orders/{chemist_id}",response_class=ORJSONResponse)
@@ -128,6 +130,7 @@ async def createOrdersDetails(
     return {
         "sucess":True,
         "message":"Data Inserted Successfully",
+        
     }
     
 @OrdersRouter.get(

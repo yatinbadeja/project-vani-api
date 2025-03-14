@@ -1,5 +1,5 @@
 from app.Config import ENV_PROJECT
-from app.database.models.Orders import Orders, OrdersDB
+from app.database.models.Orders import Orders1, OrdersDB
 from .crud.base_mongo_crud import BaseMongoDbCrud
 
 class OrdersRepo(BaseMongoDbCrud[OrdersDB]):
@@ -8,7 +8,7 @@ class OrdersRepo(BaseMongoDbCrud[OrdersDB]):
             ENV_PROJECT.MONGO_DATABASE, "Orders", unique_attributes=[]
         )
 
-    async def new(self, sub: Orders):
+    async def new(self, sub: Orders1):
         return await self.save(
             OrdersDB(**sub.model_dump())
         )

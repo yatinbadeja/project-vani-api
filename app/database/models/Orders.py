@@ -9,14 +9,14 @@ class OrderStatus(str, Enum):
     SHIPPED = "Shipped"
     CANCELLED = "Cancelled"
 
-class Orders(BaseModel):
+class Orders1(BaseModel):
     stockist_id: str
     chemist_id: str
     order_date: datetime.datetime
     status: OrderStatus
     total_amount: float
 
-class OrdersDB(Orders):
+class OrdersDB(Orders1):
     order_id: str = Field(default_factory=lambda: str(uuid4()), alias="_id")
     created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
     updated_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
