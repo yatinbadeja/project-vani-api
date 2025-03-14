@@ -150,7 +150,6 @@ async def get_current_user_details(
                 "password": 0,
                 "created_at": 0,
                 "updated_at": 0,
-                "UserData._id": 0,
                 "UserData.user_id": 0,
                 "UserData.created_at": 0,
                 "UserData.updated_at": 0,
