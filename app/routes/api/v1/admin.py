@@ -75,7 +75,7 @@ async def view_stockist_user(
     sortField: str = "created_at",
     sortOrder: SortingOrder = SortingOrder.DESC,
 ):
-    if current_user.user_type != "admin":
+    if current_user.user_type != "admin" and current_user.user_type != "user":
         raise http_exception.CredentialsInvalidException()
 
     page = Page(page=page_no, limit=limit)
