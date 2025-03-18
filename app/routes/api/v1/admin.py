@@ -362,7 +362,6 @@ async def viewChemistProfile(
                 "password": 0,
                 "created_at": 0,
                 "updated_at": 0,
-                "ChemistData._id": 0,
                 "ChemistData.user_id": 0,
                 "ChemistData.created_at": 0,
                 "ChemistData.updated_at": 0,
