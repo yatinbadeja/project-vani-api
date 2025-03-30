@@ -230,7 +230,11 @@ async def updateOrderDetails(
 
     orderDetailsExists = await order_details_repo.findOne({"order_id": order_id})
     if orderDetailsExists is None:
-        raise http_exception.ResourceNotFoundException()
+        new_Order_details = OrderDetails(
+            order_id=order_id,
+            product_details=[]
+        )
+        await order_details_repo.new(new_Order_details)
 
     tasks = []
 
