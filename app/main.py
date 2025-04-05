@@ -19,13 +19,11 @@ from app.utils.uptime import getUptime
 
 start_time = time.time()
 
-
 app = FastAPI(
     title=ENV_PROJECT.APP_TITILE,
     description=ENV_PROJECT.APP_DESCRIPTION,
     version="v" + ENV_PROJECT.APP_VERSION,
 )
-
 
 configs = [
     configure_database,
