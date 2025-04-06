@@ -6,7 +6,7 @@ from app.routes.api.v1.admin import admin as admin_endponits
 from app.routes.api.v1.product import Product as product_endpoints
 from app.routes.api.v1.inventory import inventory as inventory_endpoints
 from app.routes.api.v1.orders import OrdersRouter as orders_endpoints
-
+from app.routes.api.v1.extraction import extraction as extraction_endpoints
 routers = APIRouter()
 
 routers.include_router(
@@ -29,3 +29,8 @@ routers.include_router(
 routers.include_router(
     orders_endpoints, prefix=ENV_PROJECT.BASE_API_V1 + "/orders", tags=["Orders"]
 )
+
+routers.include_router(
+    extraction_endpoints, prefix=ENV_PROJECT.BASE_API_V1 + "/extraction", tags=["Extraction"]
+)
+
