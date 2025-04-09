@@ -7,3 +7,8 @@ class UserTypeEnum(str,Enum):
 class UserRole(str,Enum):
     STOCKIST = "Stockist"
     CHEMIST = "Chemist"
+
+class StockMovementTypeEnum(str, Enum):
+    IN = "IN"
+    OUT = "OUT"
+    RETURN= "RETURN"

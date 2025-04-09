@@ -13,4 +13,7 @@ class OrderDetailsRepo(BaseMongoDbCrud[OrderDetailsDB]):
             OrderDetailsDB(**sub.model_dump())
         )
 
+    async def get_order_details(self,order_id:str):
+        return await self.find_one({"order_id": order_id})
+
 order_details_repo = OrderDetailsRepo()

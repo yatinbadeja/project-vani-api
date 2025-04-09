@@ -15,6 +15,7 @@ from app.database.repositories.Order_Details import order_details_repo
 import asyncio
 from app.database.repositories.Product import product_repo
 from app.database.models.Order_Details import Orders
+from app.database.repositories.Stock_Movement import stock_movement_repo
 
 OrdersRouter = APIRouter()
 
@@ -215,6 +216,16 @@ async def updateOrder(
     updatedDict["status"] = status.value
     print(updatedDict)
     await orders_repo.update_one({"_id": order_id}, {"$set": updatedDict})
+
+    if status == OrderStatus.SHIPPED:
+        orderDetails = await order_details_repo.findOne({"order_id":order_id})
+        if orderDetails is None:
+            raise http_exception.ResourceNotFoundException()    
+
+        orderDetails = OrderDetails.parse_obj(orderDetails)
+        result  = await stock_movement_repo.update_incoming_stock(orderDetails.product_details, current_user.user_id)
+        if result is None:
+            raise http_exception.ResourceNotFoundException()
 
     return {"message": "Order Details updated successfully"}
 
