@@ -10,7 +10,7 @@ from app.Config import ENV_PROJECT
 # import google
 # # from google import genai
 # from app.utils.openai import gemini
-from google import genai
+# from google import genai
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 
 import google.generativeai as genai
@@ -35,7 +35,7 @@ class ExtractionTools:
         for page_num in range(len(docs)):
             data = docs[page_num].get_text("text")
             extracted_text += data
-        print(extracted_text)
+        # print(extracted_text)
 
         if len(extracted_text) < 50:
             extracted_text = ""
@@ -49,7 +49,7 @@ class ExtractionTools:
                     text_file.write(f"{text_file_name} - Page No {i + 1}\n\n")
                     text_file.write(text)
                     text_file.write("\n\n")
-        print(extracted_text)
+        # print(extracted_text)
         prompt = f'''
         You are a billing parser that generates strictly JSON-formatted responses. Follow these strict guidelines:
 
@@ -60,7 +60,8 @@ class ExtractionTools:
             "stokist": {{
                 "name": "string",
                 "address": {{
-                    "street": "string",
+                    "street_address_1": "string",
+                    "street_address_2": "string",
                     "city": "string",
                     "state": "string",
                     "zip_code": "string"
@@ -72,7 +73,8 @@ class ExtractionTools:
             "chemist": {{
                 "name": "string",
                 "address": {{
-                    "street": "string",
+                    "street_address_1": "string",
+                    "street_address_2": "string",
                     "city": "string",
                     "state": "string",
                     "zip_code": "string"
@@ -114,7 +116,8 @@ class ExtractionTools:
         Stokist Details :
         name -> Name of the stokist.
         address -> Residential address of stokist.
-        street -> Street address.
+        street_address_1 -> First part of Street address.
+        street_address_2 -> Second part of Street address.
         city -> City name.
         state -> State name (abbreviation or full).
         zip_code -> Postal code.
@@ -125,7 +128,8 @@ class ExtractionTools:
         Chemist Details :
         name -> Name of the chemist.
         address -> Residential address of chemist.
-        street -> Street address.
+        street_address_1 -> First part of Street address.
+        street_address_2 -> Second part of Street address.
         city -> City name.
         state -> State name (abbreviation or full).
         zip_code -> Postal code.
@@ -133,12 +137,12 @@ class ExtractionTools:
         DL_NO -> Drug license number alloted to chemist.
 
         Item Details:
-        subtotal -> The total cost of all items before applying any taxes or discounts.
-        discount -> Any reduction applied to the subtotal before calculating tax.
-        SGST -> The tax collected by the state government.
-        CGST -> The tax collected by the central government.
+        subtotal -> The total price of all items before adding any type taxes or discounts.
+        discount -> Any type of deduction applied to the subtotal before calculating tax.
+        SGST -> The total tax amount collected by the state government.
+        CGST -> The total tax amount collected by the central government.
         GST_total -> The sum of SGST and CGST.
-        grand_total -> The final amount to be paid, including taxes.
+        grand_total -> The final/net amount of the invoice after deducting the discount and adding the total tax amount that is to be paid, including taxes.
         outstanding_amount -> The remaining balance the buyer still owes to the supplier.
 
 
@@ -147,16 +151,17 @@ class ExtractionTools:
         '''
         response = model.generate_content(prompt)
         content = response.text.strip()
-        print(content)
+        # print(content)
         if content.startswith("```json"):
             content = content[len("```json"):].strip()
         if content.endswith("```"):
             content = content[:-len("```")].strip()
 
         data = json.loads(content)
-        print(data)
+        # print(data)
         # data["token"] = {
         #     "input_token": input_token,  # Placeholder: replace with actual counting logic if need
         # }
+        return data
 
 extraction_tools = ExtractionTools()

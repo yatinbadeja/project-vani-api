@@ -6,7 +6,12 @@ extraction = APIRouter()
 @extraction.post("/file/upload")
 async def upload_file(file: UploadFile = File(...)):
     response = await extraction_tools.text_extraction_for_scanned_and_selectable_file_for_json_format_through_gemini(file)
-    print(response)
+    # print(response)
+    return {
+        "success": True,
+        "message": "Data Extracted Successfully",
+        "data": response
+    }
     
     
 
