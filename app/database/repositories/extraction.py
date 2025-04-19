@@ -51,7 +51,7 @@ class ExtractionTools:
                     text_file.write("\n\n")
         # print(extracted_text)
         prompt = f'''
-        You are a billing parser that generates strictly JSON-formatted responses. Follow these strict guidelines:
+        You are a billing parser that extract the following information from the chemist shop bill text into a JSON object. If a field is not found, use "null". Follow these strict guidelines:
 
         Output Format:
         {{
@@ -105,6 +105,7 @@ class ExtractionTools:
                 "outstanding_amount": 0.0
             }}
         }}
+        
         Basic information from the documents to be extracted:
 
         stokist -> the supplier who sells the medicines.
@@ -165,3 +166,50 @@ class ExtractionTools:
         return data
 
 extraction_tools = ExtractionTools()
+
+
+#Orders Collection
+
+db.Orders.insertOne({
+    _id: "order_uuid", // Generate a new UUID
+    stockist_id: "stockist_uuid", //  ID of the stockist (seller)
+    chemist_id: "chemist_uuid", // ID of the chemist (buyer)
+    order_date: new Date("YYYY-MM-DD"), // From bill
+    status: "Pending", // Initial status
+    total_amount: total_amount_from_bill, // From bill
+    created_at: new Date(),
+    updated_at: new Date()
+});
+const the_order_id = "order_uuid"; // Capture generated order_id
+
+#SaleDetails Collection
+
+const saleDetails = [
+    {
+        product_id: "product_uuid_1", // From your product catalog
+        quantity: 2, // From bill
+        unit_price: 25.00, // From bill
+        sale_id: the_order_id, //  _id of the order
+        created_at: new Date(),
+        updated_at: new Date()
+    },
+    {
+        product_id: "product_uuid_2",
+        quantity: 1,
+        unit_price: 50.00,
+        sale_id: the_order_id,
+        created_at: new Date(),
+        updated_at: new Date()
+    },
+    // Add more items as needed from the bill
+];
+db.SaleDetails.insertMany(saleDetails);
+
+#ProductStock Collection
+
+saleDetails.forEach(item => {
+    db.ProductStock.updateOne(
+        { product_id: item.product_id }, //  Match by product_id
+        { $inc: { stock_available: -item.quantity } } // Reduce stock
+    );
+})
