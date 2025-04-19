@@ -168,48 +168,55 @@ class ExtractionTools:
 extraction_tools = ExtractionTools()
 
 
-#Orders Collection
 
-db.Orders.insertOne({
-    _id: "order_uuid", // Generate a new UUID
-    stockist_id: "stockist_uuid", //  ID of the stockist (seller)
-    chemist_id: "chemist_uuid", // ID of the chemist (buyer)
-    order_date: new Date("YYYY-MM-DD"), // From bill
-    status: "Pending", // Initial status
-    total_amount: total_amount_from_bill, // From bill
-    created_at: new Date(),
-    updated_at: new Date()
-});
-const the_order_id = "order_uuid"; // Capture generated order_id
 
 #SaleDetails Collection
 
-const saleDetails = [
+from pymongo import MongoClient
+from datetime import datetime
+
+# 1.  Establish a connection to MongoDB
+client = MongoClient('mongodb://localhost:27017/')  # Replace with your MongoDB connection string
+db = client['your_database_name']  # Replace with your actual database name
+
+# 2.  Data to be inserted
+the_order_id = "order_uuid"  #  Replace with your actual order ID (UUID)
+
+sale_details = [
     {
-        product_id: "product_uuid_1", // From your product catalog
-        quantity: 2, // From bill
-        unit_price: 25.00, // From bill
-        sale_id: the_order_id, //  _id of the order
-        created_at: new Date(),
-        updated_at: new Date()
+        "product_id": "product_uuid_1",  # Replace with actual product UUID
+        "quantity": 2,
+        "unit_price": 25.00,
+        "sale_id": the_order_id,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
     },
     {
-        product_id: "product_uuid_2",
-        quantity: 1,
-        unit_price: 50.00,
-        sale_id: the_order_id,
-        created_at: new Date(),
-        updated_at: new Date()
+        "product_id": "product_uuid_2",  # Replace with actual product UUID
+        "quantity": 1,
+        "unit_price": 50.00,
+        "sale_id": the_order_id,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
     },
-    // Add more items as needed from the bill
-];
-db.SaleDetails.insertMany(saleDetails);
+    #  Add more items as needed
+]
 
-#ProductStock Collection
+# 3. Insert into SaleDetails Collection
+sale_details_collection = db['SaleDetails']  # Get the SaleDetails collection
+sale_details_collection.insert_many(sale_details)  # Use insert_many
 
-saleDetails.forEach(item => {
-    db.ProductStock.updateOne(
-        { product_id: item.product_id }, //  Match by product_id
-        { $inc: { stock_available: -item.quantity } } // Reduce stock
-    );
-})
+
+# 4. Update ProductStock Collection
+product_stock_collection = db['ProductStock'] #Get the ProductStock Collection
+for item in sale_details:
+    product_id = item['product_id']
+    quantity = item['quantity']
+    
+    product_stock_collection.update_one(
+        {'product_id': product_id},  # Filter: match by product_id
+        {'$inc': {'stock_available': quantity}}  # Update: decrement stock
+    )
+
+# 5. Close the connection (optional, but good practice)
+client.close()
