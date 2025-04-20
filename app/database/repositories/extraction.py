@@ -53,11 +53,11 @@ class ExtractionTools:
         prompt = f'''
         You are a billing parser that extract the following information from the chemist shop bill text into a JSON object. If a field is not found, use "null". Follow these strict guidelines:
 
-        Output Format:
+          Output Format:
         {{
             "invoice_no": "string",
-            "date": "string",
-            "stokist": {{
+            "date": "DD-MM-YYYY",
+            "stockist": {{
                 "name": "string",
                 "address": {{
                     "street_address_1": "string",
@@ -91,6 +91,7 @@ class ExtractionTools:
                     "expiry": "YYYY-MM",
                     "quantity": "string",
                     "MRP": "string",
+                    "rate": "string",
                     "GST_percent": "string",
                     "amount": "string"
                 }}
@@ -98,20 +99,17 @@ class ExtractionTools:
             "totals": {{
                 "subtotal": 0.0,
                 "discount": 0.0,
-                "SGST": 0.0,
-                "CGST": 0.0,
                 "GST_total": 0.0,
                 "grand_total": 0.0,
                 "outstanding_amount": 0.0
             }}
         }}
-        
         Basic information from the documents to be extracted:
 
         stokist -> the supplier who sells the medicines.
         chemist -> the buyer who purchase the medicines.
-        invoice number -> unique sequential code that is systematically assigned to invoices.
-        date -> date of purchasing the medicines.
+        invoice_no -> unique sequential code that is systematically assigned to invoices.
+        date -> Date of the invoice in DD-MM-YYYY format.
         items -> list or table of all medicines details.
 
         Stokist Details :
@@ -138,11 +136,21 @@ class ExtractionTools:
         DL_NO -> Drug license number alloted to chemist.
 
         Item Details:
-        subtotal -> The total price of all items before adding any type taxes or discounts.
+        product_name -> Name of the product.
+        pack -> Pack size of the product(Ltr, ml, Kg, No. of Tablets per pack).
+        batch -> Batch number of the product.
+        HSN -> Harmonized System of Nomenclature code of the product.
+        expiry -> Expiry date of the product in YYYY-MM format.
+        quantity -> Number of units of the product.
+        MRP -> Maximum Retail Price of the product.
+        rate -> Rate of the product.
+        GST_percent -> Goods and Services Tax percentage(Sum of all type of GST(SGST + CGST + IGST)) applicable to the product.
+        amount -> Total amount for the product (quantity * rate).
+        
+        Totals Details:
+        subtotal -> The total amount of all the items excluding the taxes and discounts.
         discount -> Any type of deduction applied to the subtotal before calculating tax.
-        SGST -> The total tax amount collected by the state government.
-        CGST -> The total tax amount collected by the central government.
-        GST_total -> The sum of SGST and CGST.
+        GST_total -> The sum of all type of GST(SGST, IGST and CGST).
         grand_total -> The final/net amount of the invoice after deducting the discount and adding the total tax amount that is to be paid, including taxes.
         outstanding_amount -> The remaining balance the buyer still owes to the supplier.
 
