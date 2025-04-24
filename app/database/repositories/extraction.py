@@ -12,6 +12,7 @@ from app.Config import ENV_PROJECT
 # from app.utils.openai import gemini
 # from google import genai
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+from app.Config import ENV_PROJECT
 
 import google.generativeai as genai
 
@@ -184,8 +185,8 @@ from pymongo import MongoClient
 from datetime import datetime
 
 # 1.  Establish a connection to MongoDB
-client = MongoClient('mongodb://localhost:27017/')  # Replace with your MongoDB connection string
-db = client['your_database_name']  # Replace with your actual database name
+client = MongoClient(ENV_PROJECT.MONGO_URI)  # Replace with your MongoDB connection string
+db = client[ENV_PROJECT.MONGO_DATABASE]  # Replace with your actual database name
 
 # 2.  Data to be inserted
 the_order_id = "order_uuid"  #  Replace with your actual order ID (UUID)
