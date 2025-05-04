@@ -32,7 +32,7 @@ sales = APIRouter()
 
 
 @sales.post(
-    "/create", 
+    "/create",
     response_class=ORJSONResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -44,10 +44,10 @@ async def createSales(
         raise http_exception.CredentialsInvalidException()
 
     # 1. Create Sale record
-    sale= Sales(
-        chemist_id = current_user.user_id,
-        customer_id = str(uuid4()),
-        amount = salesProduct.quantity * salesProduct.unit_price
+    sale = Sales(
+        chemist_id=current_user.user_id,
+        customer_id=str(uuid4()),
+        amount=salesProduct.quantity * salesProduct.unit_price,
     )
     newSales = await sales_repo.new(sale)
 
@@ -56,9 +56,9 @@ async def createSales(
 
     print("newSales", newSales)
 
-     # 2. Create Sale Details record
+    # 2. Create Sale Details record
     salesDetails = SaleDetails(
-        sale_id=newSales.sale_id, 
+        sale_id=newSales.sale_id,
         product_id=salesProduct.product_id,
         quantity=salesProduct.quantity,
         unit_price=salesProduct.unit_price,
@@ -91,7 +91,7 @@ async def createSales(
     product_stock.available_quantity -= salesProduct.quantity
     update_operation = UpdateOne(
         {"product_id": salesProduct.product_id, "chemist_id": current_user.user_id},
-        {"$set": {"available_quantity": product_stock.available_quantity}}
+        {"$set": {"available_quantity": product_stock.available_quantity}},
     )
 
     operations = [update_operation]
@@ -99,6 +99,7 @@ async def createSales(
     print("reults", result)
 
     return {"sale_id": newSales.sale_id, "message": "Sale created successfully"}
+
 
 @sales.post(
     "/create/mulitple_sales",
@@ -120,11 +121,22 @@ async def createMulitpleSales(
 
     # Process each sales product
     for salesProduct in salesProducts:
-        # 1. Create Sale record for each SalesProduct
+        # 1. Check Product Stock available quantity
+        product_stock = await product_stock_repo.get_product_stock(
+            product_id=salesProduct.product_id, chemist_id=current_user.user_id
+        )
+
+        if isinstance(product_stock, dict):
+            product_stock = ProductStockDB.parse_obj(product_stock)
+
+        if not product_stock or product_stock.available_quantity < salesProduct.quantity:
+            raise http_exception(status_code=400, detail="Insufficient stock available")
+
+        # 2. Create Sale record for each SalesProduct
         sale = Sales(
             chemist_id=current_user.user_id,
             customer_id=str(uuid4()),  # Assuming customer_id is generated here
-            amount=salesProduct.quantity * salesProduct.unit_price
+            amount=salesProduct.quantity * salesProduct.unit_price,
         )
         newSales = await sales_repo.new(sale)
 
@@ -134,9 +146,9 @@ async def createMulitpleSales(
         if isinstance(newSales, dict):
             newSales = SalesDB.parse_obj(newSales)
 
-        # 2. Create Sale Details record for each SalesProduct
+        # 3. Create Sale Details record for each SalesProduct
         salesDetails = SaleDetails(
-            sale_id=newSales.sale_id, 
+            sale_id=newSales.sale_id,
             product_id=salesProduct.product_id,
             quantity=salesProduct.quantity,
             unit_price=salesProduct.unit_price,
@@ -146,7 +158,7 @@ async def createMulitpleSales(
         # Add Sale Details operation to the list
         sale_details_operations.append(newSalesDetails)
 
-        # 3. Create Stock Movement (OUT) for each SalesProduct
+        # 4. Create Stock Movement (OUT) for each SalesProduct
         stock_movement = StockMovement(
             product_id=salesProduct.product_id,
             quantity=salesProduct.quantity,
@@ -159,23 +171,18 @@ async def createMulitpleSales(
         # Add Stock Movement operation to the list
         stock_movement_operations.append(newStockMovement)
 
-        # 4. Update Product Stock (decrease available quantity)
-        product_stock = await product_stock_repo.get_product_stock(
-            product_id=salesProduct.product_id, chemist_id=current_user.user_id
-        )
-
-        if isinstance(product_stock, dict):
-            product_stock = ProductStockDB.parse_obj(product_stock)
-
-        if not product_stock or product_stock.available_quantity < salesProduct.quantity:
-            raise http_exception(status_code=400, detail="Insufficient stock available")
+        # 5. Update Product Stock (decrease available quantity)
+        product_stock.available_quantity -= salesProduct.quantity
 
         # Create the UpdateOne operation for stock update
-        product_stock.available_quantity -= salesProduct.quantity
-        
         update_operation = UpdateOne(
-            {"product_id": salesProduct.product_id, "chemist_id": current_user.user_id},  # Filter
-            {"$set": {"available_quantity": product_stock.available_quantity}}  # Update available_quantity
+            {
+                "product_id": salesProduct.product_id,
+                "chemist_id": current_user.user_id,
+            },  # Filter
+            {
+                "$set": {"available_quantity": product_stock.available_quantity}
+            },  # Update available_quantity
         )
 
         # Add the stock update operation to the list
@@ -185,12 +192,14 @@ async def createMulitpleSales(
     if stock_update_operations:
         await product_stock_repo.bulk_write(stock_update_operations)  # Bulk update stock
 
-    return {"message": "Sales created successfully", "sale_ids": [sale.sale_id for sale in sales_operations]}
+    return {
+        "message": "Sales created successfully",
+        "success": True,
+        "sale_ids": [sale.sale_id for sale in sales_operations],
+    }
 
 
-@sales.get(
-    "/", response_class=ORJSONResponse
-)
+@sales.get("/", response_class=ORJSONResponse)
 async def getAllSales(
     current_user: TokenData = Depends(get_current_user),
     search: str = None,
@@ -214,9 +223,9 @@ async def getAllSales(
         category=category,
         state=state,
         pagination=page_request,
-        sort=sort
+        sort=sort,
     )
-    
+
     if result is None:
         raise http_exception.ResourceNotFoundException()
 

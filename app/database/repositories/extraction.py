@@ -1,17 +1,18 @@
 import json
 import cv2
-import fitz 
+import fitz
 import numpy as np
 import pytesseract
 import tempfile
 from uuid import uuid4
 from pdf2image import convert_from_path
 from app.Config import ENV_PROJECT
+
 # import google
 # # from google import genai
 # from app.utils.openai import gemini
 # from google import genai
-pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = r"C:/Program Files/Tesseract-OCR/tesseract.exe"
 from app.Config import ENV_PROJECT
 
 import google.generativeai as genai
@@ -19,8 +20,11 @@ import google.generativeai as genai
 genai.configure(api_key=ENV_PROJECT.GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.0-flash")
 
+
 class ExtractionTools:
-    async def text_extraction_for_scanned_and_selectable_file_for_json_format_through_gemini(self, file):
+    async def text_extraction_for_scanned_and_selectable_file_for_json_format_through_gemini(
+        self, file
+    ):
         input_token = 0
         output_token = 0
         extracted_text = ""
@@ -31,7 +35,7 @@ class ExtractionTools:
             temp_file_content = await file.read()
             temp_file.write(temp_file_content)
             temp_file_path = temp_file.name
-        
+
         docs = fitz.open(temp_file_path)
         for page_num in range(len(docs)):
             data = docs[page_num].get_text("text")
@@ -40,7 +44,7 @@ class ExtractionTools:
 
         if len(extracted_text) < 50:
             extracted_text = ""
-            with open("./extract.txt", mode='w') as text_file:
+            with open("./extract.txt", mode="w") as text_file:
                 images = convert_from_path(temp_file_path)
                 for i, image in enumerate(images):
                     image = np.array(image)
@@ -51,7 +55,7 @@ class ExtractionTools:
                     text_file.write(text)
                     text_file.write("\n\n")
         # print(extracted_text)
-        prompt = f'''
+        prompt = f"""
         You are a billing parser that extract the following information from the chemist shop bill text into a JSON object. If a field is not found, use "null". Follow these strict guidelines:
 
           Output Format:
@@ -158,14 +162,14 @@ class ExtractionTools:
 
         Input Text:
         {extracted_text}
-        '''
+        """
         response = model.generate_content(prompt)
         content = response.text.strip()
         # print(content)
         if content.startswith("```json"):
-            content = content[len("```json"):].strip()
+            content = content[len("```json") :].strip()
         if content.endswith("```"):
-            content = content[:-len("```")].strip()
+            content = content[: -len("```")].strip()
 
         data = json.loads(content)
         # print(data)
@@ -174,12 +178,85 @@ class ExtractionTools:
         # }
         return data
 
+    async def process_and_insert(file):  # Added a new function
+        extracted_data = await extraction_tools.text_extraction_for_scanned_and_selectable_file_for_json_format_through_gemini(
+            file
+        )
+        if extracted_data is None:
+            print("Failed to extract data.")
+            return
+
+        # 1.  Establish a connection to MongoDB
+        client = MongoClient(
+            "mongodb://localhost:27017/"
+        )  # Replace with your MongoDB connection string
+        db = client["your_database_name"]  # Replace with your actual database name
+
+        # 2.  Data to be inserted
+        the_order_id = str(uuid4())  #  Generate a new order ID
+        sale_details = []
+
+        # 3. Process extracted data for database insertion
+        for item in extracted_data["items"]:
+            try:
+                sale_detail_item = {
+                    "product_id": item.get(
+                        "product_id", "some_product_uuid"
+                    ),  #  You'll need to map product_name to product_id
+                    "quantity": int(item["quantity"]),
+                    "unit_price": float(item["MRP"]),
+                    "batch": item.get("batch", ""),
+                    "expiry": item.get("expiry", ""),
+                    "sale_id": the_order_id,
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                }
+                sale_details.append(sale_detail_item)
+            except (ValueError, TypeError) as e:
+                print(f"Error processing item: {item}. Error: {e}")
+                # Handle the error, e.g., skip this item, or log it, or raise an exception
+                continue  # Skip to the next item
+        # 4. Insert into SaleDetails Collection
+        sale_details_collection = db["SaleDetails"]
+        if sale_details:  # only insert if there are sale_details
+            try:
+                sale_details_collection.insert_many(sale_details)
+            except Exception as e:
+                print(f"Error inserting into SaleDetails: {e}")
+                # Handle error
+                client.close()
+                return
+
+            # 5. Update ProductStock Collection
+            product_stock_collection = db["ProductStock"]
+            for item in sale_details:
+                product_id = item["product_id"]
+                quantity = item["quantity"]
+                try:
+                    result = product_stock_collection.update_one(
+                        {"product_id": product_id},
+                        {
+                            "$inc": {"stock_available": -quantity}
+                        },  # Corrected to decrement
+                    )
+                    if result.modified_count == 0:
+                        print(
+                            f"Warning: Product stock not updated for product_id: {product_id}"
+                        )
+                except Exception as e:
+                    print(f"Error updating product stock: {e}")
+                    # Handle error
+                    client.close()
+                    return
+        else:
+            print("No sale details to insert")
+        return the_order_id  # returning the order id
+
+
 extraction_tools = ExtractionTools()
 
 
-
-
-#SaleDetails Collection
+# SaleDetails Collection
 
 from pymongo import MongoClient
 from datetime import datetime
@@ -198,7 +275,7 @@ sale_details = [
         "unit_price": 25.00,
         "sale_id": the_order_id,
         "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.utcnow(),
     },
     {
         "product_id": "product_uuid_2",  # Replace with actual product UUID
@@ -206,25 +283,25 @@ sale_details = [
         "unit_price": 50.00,
         "sale_id": the_order_id,
         "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.utcnow(),
     },
     #  Add more items as needed
 ]
 
 # 3. Insert into SaleDetails Collection
-sale_details_collection = db['SaleDetails']  # Get the SaleDetails collection
+sale_details_collection = db["SaleDetails"]  # Get the SaleDetails collection
 sale_details_collection.insert_many(sale_details)  # Use insert_many
 
 
 # 4. Update ProductStock Collection
-product_stock_collection = db['ProductStock'] #Get the ProductStock Collection
+product_stock_collection = db["ProductStock"]  # Get the ProductStock Collection
 for item in sale_details:
-    product_id = item['product_id']
-    quantity = item['quantity']
-    
+    product_id = item["product_id"]
+    quantity = item["quantity"]
+
     product_stock_collection.update_one(
-        {'product_id': product_id},  # Filter: match by product_id
-        {'$inc': {'stock_available': quantity}}  # Update: decrement stock
+        {"product_id": product_id},  # Filter: match by product_id
+        {"$inc": {"stock_available": quantity}},  # Update: decrement stock
     )
 
 # 5. Close the connection (optional, but good practice)

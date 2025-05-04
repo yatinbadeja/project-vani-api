@@ -15,18 +15,16 @@ from app.database.repositories.crud.base import (
 
 class ProductStockRepo(BaseMongoDbCrud):
     def __init__(self):
-        super().__init__(
-            ENV_PROJECT.MONGO_DATABASE, "ProductStock", unique_attributes=[]
-        )
+        super().__init__(ENV_PROJECT.MONGO_DATABASE, "ProductStock", unique_attributes=[])
 
     async def new(self, sub: ProductStock):
-        return await self.save(
-            ProductStockDB(**sub.model_dump())
-        )
+        return await self.save(ProductStockDB(**sub.model_dump()))
 
     async def get_product_stock(self, product_id: str, chemist_id: str):
         print("product_Id", product_id)
-        return await self.collection.find_one({"product_id": product_id, "chemist_id": chemist_id})
+        return await self.collection.find_one(
+            {"product_id": product_id, "chemist_id": chemist_id}
+        )
 
     async def bulk_write(self, operations: List[UpdateOne]):
         if operations:
@@ -35,19 +33,18 @@ class ProductStockRepo(BaseMongoDbCrud):
     async def insert_many(self, products: List[ProductStockDB]):
         if products:
             documents = [
-                {**doc.model_dump(), "_id": str(doc.product_stock_id)}
-                for doc in products
+                {**doc.model_dump(), "_id": str(doc.product_stock_id)} for doc in products
             ]
             return await self.collection.insert_many(documents)
 
     async def getProductStock(
-            self,
-            current_user_id: str,
-            search: str,
-            state: str,
-            category: str,
-            pagination: PageRequest,
-            sort: Sort
+        self,
+        current_user_id: str,
+        search: str,
+        state: str,
+        category: str,
+        pagination: PageRequest,
+        sort: Sort,
     ):
         filter_params = {
             "chemist_id": current_user_id,
@@ -76,9 +73,7 @@ class ProductStockRepo(BaseMongoDbCrud):
 
         pipeline = []
         pipeline = [
-            {
-                "$match": filter_params
-            },
+            {"$match": filter_params},
             {
                 "$lookup": {
                     "from": "Product",
@@ -100,64 +95,176 @@ class ProductStockRepo(BaseMongoDbCrud):
                                 "updated_at": 1,
                             }
                         }
-                    ]
+                    ],
                 }
             },
-            {
-                "$unwind": {
-                    "path": "$productDetails",
-                    "preserveNullAndEmptyArrays": True
-                }
-            },
+            {"$unwind": {"path": "$productDetails", "preserveNullAndEmptyArrays": True}},
+            # {
+            #     "$lookup": {
+            #         "from": "StockMovement",
+            #         "localField": "product_id",
+            #         "foreignField": "product_id",
+            #         "as": "stock_movements",
+            #         "pipeline": [
+            #             {"$match": {"chemist_id": current_user_id}},
+            #             {
+            #                 "$project": {
+            #                     "quantity": 1,
+            #                     "unit_price": 1,
+            #                     "movement_type": 1,
+            #                 }
+            #             },
+            #         ],
+            #     }
+            # },
+            # {
+            #     "$addFields": {
+            #         "purchase_price": {
+            #             "$sum": {
+            #                 "$map": {
+            #                     "input": "$stock_movements",
+            #                     "as": "movement",
+            #                     "in": {
+            #                         "$cond": {
+            #                             "if": {"$eq": ["$$movement.movement_type", "IN"]},
+            #                             "then": {
+            #                                 "$multiply": [
+            #                                     "$$movement.quantity",
+            #                                     "$$movement.unit_price",
+            #                                 ]
+            #                             },
+            #                             "else": {
+            #                                 "$multiply": [
+            #                                     "$$movement.quantity",
+            #                                     {
+            #                                         "$multiply": [
+            #                                             "$$movement.unit_price",
+            #                                             -1,
+            #                                         ]
+            #                                     },
+            #                                 ]
+            #                             },
+            #                         }
+            #                     },
+            #                 }
+            #             }
+            #         }
+            #     }
+            # },
             {
                 "$lookup": {
                     "from": "StockMovement",
-                    "localField": "product_id",
-                    "foreignField": "product_id",
-                    "as": "stock_movements",
+                    "let": {"prod_id": "$product_id"},
                     "pipeline": [
                         {
                             "$match": {
-                                "chemist_id": current_user_id
+                                "$expr": {
+                                    "$and": [
+                                        {"$eq": ["$product_id", "$$prod_id"]},
+                                        {"$eq": ["$chemist_id", current_user_id]},
+                                        {"$in": ["$movement_type", ["IN", "OUT"]]},
+                                    ]
+                                }
                             }
                         },
                         {
-                            "$project": {
-                                "quantity": 1,
-                                "unit_price": 1,
-                                "movement_type": 1
+                            "$group": {
+                                "_id": "$movement_type",
+                                "total_quantity": {"$sum": "$quantity"},
+                                "avg_price": {"$sum": {"$multiply":["$unit_price", "$quantity"]}},
                             }
-                        }
-                    ]
+                        },
+                    ],
+                    "as": "movementData",
                 }
             },
             {
                 "$addFields": {
-                    "available_product_price": {
-                        "$sum": {
+                    "purchase_price": {
+                        "$first": {
                             "$map": {
-                                "input": "$stock_movements",
-                                "as": "movement",
-                                "in": {
-                                    "$cond": {
-                                        "if": {"$eq": ["$$movement.movement_type", "IN"]},
-                                        "then": {
-                                            "$multiply": ["$$movement.quantity", "$$movement.unit_price"]
-                                        },
-                                        "else": {
-                                            "$multiply": ["$$movement.quantity", {"$multiply": ["$$movement.unit_price", -1]}]
-                                        }
+                                "input": {
+                                    "$filter": {
+                                        "input": "$movementData",
+                                        "as": "m",
+                                        "cond": {"$eq": ["$$m._id", "IN"]},
                                     }
-                                }
+                                },
+                                "as": "x",
+                                "in": "$$x.avg_price",
                             }
                         }
-                    }
+                    },
+                    "sell_price": {
+                        "$first": {
+                            "$map": {
+                                "input": {
+                                    "$filter": {
+                                        "input": "$movementData",
+                                        "as": "m",
+                                        "cond": {"$eq": ["$$m._id", "OUT"]},
+                                    }
+                                },
+                                "as": "x",
+                                "in": "$$x.avg_price",
+                            }
+                        }
+                    },
+                    "available_quantity": {
+                        "$subtract": [
+                            {
+                                "$ifNull": [
+                                    {
+                                        "$first": {
+                                            "$map": {
+                                                "input": {
+                                                    "$filter": {
+                                                        "input": "$movementData",
+                                                        "as": "m",
+                                                        "cond": {
+                                                            "$eq": ["$$m._id", "IN"]
+                                                        },
+                                                    }
+                                                },
+                                                "as": "x",
+                                                "in": "$$x.total_quantity",
+                                            }
+                                        }
+                                    },
+                                    0,
+                                ]
+                            },
+                            {
+                                "$ifNull": [
+                                    {
+                                        "$first": {
+                                            "$map": {
+                                                "input": {
+                                                    "$filter": {
+                                                        "input": "$movementData",
+                                                        "as": "m",
+                                                        "cond": {
+                                                            "$eq": ["$$m._id", "OUT"]
+                                                        },
+                                                    }
+                                                },
+                                                "as": "x",
+                                                "in": "$$x.total_quantity",
+                                            }
+                                        }
+                                    },
+                                    0,
+                                ]
+                            },
+                        ]
+                    },
                 }
             },
             {
                 "$project": {
                     "product_id": 1,
-                    "available_product_price": 1,
+                    "purchase_price": 1,
+                    "sell_price": 1,
                     "available_quantity": 1,
                     "updated_at": 1,
                     "productDetails": {
@@ -169,9 +276,8 @@ class ProductStockRepo(BaseMongoDbCrud):
                         "storage_requirement": "$productDetails.storage_requirement",
                         "expiry_date": "$productDetails.expiry_date",
                         "description": "$productDetails.description",
-                        # "created_at": "$productDetails.created_at",
-                        # "updated_at": "$productDetails.updated_at"
-                    }
+                        "price": "$productDetails.price",
+                    },
                 }
             },
             {"$sort": sort_criteria},
@@ -181,9 +287,7 @@ class ProductStockRepo(BaseMongoDbCrud):
             {
                 "$facet": {
                     "docs": [
-                        {
-                            "$skip": (pagination.paging.page - 1) * pagination.paging.limit
-                        },
+                        {"$skip": (pagination.paging.page - 1) * pagination.paging.limit},
                         {"$limit": pagination.paging.limit},
                     ],
                     "count": [{"$count": "count"}],
@@ -191,7 +295,7 @@ class ProductStockRepo(BaseMongoDbCrud):
                         {"$match": {"category": {"$ne": None}}},
                         {"$group": {"_id": "$category"}},
                         {"$project": {"_id": 0, "category": "$_id"}},
-                        {"$sort": {"category": 1}}
+                        {"$sort": {"category": 1}},
                     ],
                 }
             }

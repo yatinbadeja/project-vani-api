@@ -117,7 +117,7 @@ async def view_all_product(
 ):
     if current_user.user_type != "user" and current_user.user_type != "admin":
         raise http_exception.CredentialsInvalidException()
-    
+
     page = Page(page=page_no, limit=limit)
     sort = Sort(sort_field=sortField, sort_order=sortOrder)
     page_request = PageRequest(paging=page, sorting=sort)
@@ -127,6 +127,28 @@ async def view_all_product(
     )
 
     return {"success": True, "message": "Data Fetched Successfully...", "data": result}
+
+
+@Product.get(
+    "/view/all/categories", response_class=ORJSONResponse, status_code=status.HTTP_200_OK
+)
+async def view_all_categories(
+    current_user: TokenData = Depends(get_current_user),
+):
+    if current_user.user_type != "user" and current_user.user_type != "admin":
+        raise http_exception.CredentialsInvalidException()
+
+    unique_categories_pipeline = [
+        {"$group": {"_id": "$category"}},
+        {"$project": {"_id": 1, "category": "$_id"}},
+        {"$sort": {"category": 1}},
+    ]
+    categories_res = [
+        doc async for doc in product_repo.collection.aggregate(unique_categories_pipeline)
+    ]
+    unique_categories = [entry["category"] for entry in categories_res]
+
+    return {"success": True, "message": "Data Fetched Successfully...", "data": unique_categories}
 
 
 @Product.get(
@@ -157,4 +179,3 @@ async def getProducts(
         ]
     ).to_list(None)
     return {"success": True, "data": products}
-
