@@ -188,9 +188,9 @@ class ExtractionTools:
 
         # 1.  Establish a connection to MongoDB
         client = MongoClient(
-            "mongodb://localhost:27017/"
+            ENV_PROJECT.MONGO_URI
         )  # Replace with your MongoDB connection string
-        db = client["your_database_name"]  # Replace with your actual database name
+        db = client[ENV_PROJECT.MONGO_DATABASE]  # Replace with your actual database name
 
         # 2.  Data to be inserted
         the_order_id = str(uuid4())  #  Generate a new order ID
