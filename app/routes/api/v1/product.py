@@ -157,6 +157,7 @@ async def view_all_categories(
     status_code=status.HTTP_200_OK,
 )
 async def getProducts(
+    search : str = "",
     current_user: TokenData = Depends(get_current_user),
 ):
     if current_user.user_type != "user" and current_user.user_type != "admin":
@@ -164,6 +165,14 @@ async def getProducts(
 
     products = await product_repo.collection.aggregate(
         [
+            {
+                "$match":{
+                    "product_name":{
+                        "$regex":search,
+                        "$options":"i"
+                    }    
+                }
+            },
             {
                 "$project": {
                     "storage_requirement": 0,
