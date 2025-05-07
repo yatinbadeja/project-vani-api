@@ -52,7 +52,12 @@ class ProductStockRepo(BaseMongoDbCrud):
 
         if search not in ["", None]:
             filter_params["$or"] = [
-                {"productDetails.product_name": {"$regex": f"^{search}", "$options": "i"}},
+                {
+                    "productDetails.product_name": {
+                        "$regex": f"^{search}",
+                        "$options": "i",
+                    }
+                },
                 {"productDetails.category": {"$regex": f"^{search}", "$options": "i"}},
             ]
 
@@ -67,7 +72,8 @@ class ProductStockRepo(BaseMongoDbCrud):
         }
 
         sort_field_mapped = sort_fields_mapping.get(
-            sort.sort_field, "productDetails.product_name")
+            sort.sort_field, "productDetails.product_name"
+        )
         sort_order_value = 1 if sort.sort_order == SortingOrder.ASC else -1
         sort_criteria = {sort_field_mapped: sort_order_value}
 
@@ -99,58 +105,6 @@ class ProductStockRepo(BaseMongoDbCrud):
                 }
             },
             {"$unwind": {"path": "$productDetails", "preserveNullAndEmptyArrays": True}},
-            # {
-            #     "$lookup": {
-            #         "from": "StockMovement",
-            #         "localField": "product_id",
-            #         "foreignField": "product_id",
-            #         "as": "stock_movements",
-            #         "pipeline": [
-            #             {"$match": {"chemist_id": current_user_id}},
-            #             {
-            #                 "$project": {
-            #                     "quantity": 1,
-            #                     "unit_price": 1,
-            #                     "movement_type": 1,
-            #                 }
-            #             },
-            #         ],
-            #     }
-            # },
-            # {
-            #     "$addFields": {
-            #         "purchase_price": {
-            #             "$sum": {
-            #                 "$map": {
-            #                     "input": "$stock_movements",
-            #                     "as": "movement",
-            #                     "in": {
-            #                         "$cond": {
-            #                             "if": {"$eq": ["$$movement.movement_type", "IN"]},
-            #                             "then": {
-            #                                 "$multiply": [
-            #                                     "$$movement.quantity",
-            #                                     "$$movement.unit_price",
-            #                                 ]
-            #                             },
-            #                             "else": {
-            #                                 "$multiply": [
-            #                                     "$$movement.quantity",
-            #                                     {
-            #                                         "$multiply": [
-            #                                             "$$movement.unit_price",
-            #                                             -1,
-            #                                         ]
-            #                                     },
-            #                                 ]
-            #                             },
-            #                         }
-            #                     },
-            #                 }
-            #             }
-            #         }
-            #     }
-            # },
             {
                 "$lookup": {
                     "from": "StockMovement",
@@ -171,7 +125,9 @@ class ProductStockRepo(BaseMongoDbCrud):
                             "$group": {
                                 "_id": "$movement_type",
                                 "total_quantity": {"$sum": "$quantity"},
-                                "avg_price": {"$sum": {"$multiply":["$unit_price", "$quantity"]}},
+                                "avg_price": {
+                                    "$sum": {"$multiply": ["$unit_price", "$quantity"]}
+                                },
                             }
                         },
                     ],
@@ -286,6 +242,58 @@ class ProductStockRepo(BaseMongoDbCrud):
         pipeline.append(
             {
                 "$facet": {
+                    "purchase_value": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "total_purchase_value": {"$sum": "$purchase_price"},
+                            }
+                        },
+                        {"$project": {"_id": 0, "total_purchase_value": 1}},
+                    ],
+                    "sales_value": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "total_sales_value": {"$sum": "$sell_price"},
+                            }
+                        },
+                        {"$project": {"_id": 0, "total_sales_value": 1}},
+                    ],
+                    "positive_stock": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "total_positive_stock": {
+                                    "$sum": {
+                                        "$cond": [
+                                            {"$gt": ["$available_quantity", 10]},
+                                            1,
+                                            0,
+                                        ]
+                                    }
+                                },
+                            }
+                        },
+                        {"$project": {"_id": 0, "total_positive_stock": 1}},
+                    ],
+                     "low_stock": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "total_low_stock": {
+                                    "$sum": {
+                                        "$cond": [
+                                            {"$gt": ["$available_quantity", 10]},
+                                            0,
+                                            1,
+                                        ]
+                                    }
+                                },
+                            }
+                        },
+                        {"$project": {"_id": 0, "total_low_stock": 1}},
+                    ],
                     "docs": [
                         {"$skip": (pagination.paging.page - 1) * pagination.paging.limit},
                         {"$limit": pagination.paging.limit},
@@ -305,13 +313,42 @@ class ProductStockRepo(BaseMongoDbCrud):
         res = result[0]
 
         docs = res["docs"]
+        purchase_value = (
+            res["purchase_value"][0]["total_purchase_value"]
+            if len(res["purchase_value"]) > 0
+            else 0
+        )
+        sales_value = (
+            res["sales_value"][0]["total_sales_value"]
+            if len(res["sales_value"]) > 0
+            else 0
+        )
+        positive_stock = (
+            res["positive_stock"][0]["total_positive_stock"]
+            if len(res["positive_stock"]) > 0
+            else 0
+        )
+        low_stock = (
+            res["low_stock"][0]["total_low_stock"]
+            if len(res["low_stock"]) > 0
+            else 0
+        )
+        print("positive_stock", positive_stock)
+        print("low_stock", low_stock)
+
         count = res["count"][0]["count"] if len(res["count"]) > 0 else 0
         unique_categories = [entry["category"] for entry in res["unique_categories"]]
 
         return PaginatedResponse(
             docs=docs,
             meta=Meta(
-                **pagination.paging.model_dump(), total=count, unique=unique_categories
+                **pagination.paging.model_dump(),
+                total=count,
+                unique=unique_categories,
+                purchase_value=purchase_value,
+                sale_value=sales_value,
+                positive_stock=positive_stock,
+                low_stock=low_stock,
             ),
         )
 

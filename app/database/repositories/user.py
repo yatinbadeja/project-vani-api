@@ -88,7 +88,7 @@ class userRepo(BaseMongoDbCrud[UserDB]):
                 },
                 {
                     "$project": {
-                        "StockistData._id": 0,
+                        # "StockistData._id": 0,
                         "StockistData.user_id": 0,
                         "StockistData.created_at": 0,
                         "StockistData.updated_at": 0,

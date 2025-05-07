@@ -85,6 +85,7 @@ async def getUserOrders(
                 "Stockist.updated_at": 0,
             }
         },
+        {"$sort": {"order_date": -1}},
     ]
 
     return {
@@ -218,12 +219,14 @@ async def updateOrder(
     await orders_repo.update_one({"_id": order_id}, {"$set": updatedDict})
 
     if status == OrderStatus.SHIPPED:
-        orderDetails = await order_details_repo.findOne({"order_id":order_id})
+        orderDetails = await order_details_repo.findOne({"order_id": order_id})
         if orderDetails is None:
-            raise http_exception.ResourceNotFoundException()    
+            raise http_exception.ResourceNotFoundException()
 
         orderDetails = OrderDetails.parse_obj(orderDetails)
-        result  = await stock_movement_repo.update_incoming_stock(orderDetails.product_details, current_user.user_id)
+        result = await stock_movement_repo.update_incoming_stock(
+            orderDetails.product_details, current_user.user_id
+        )
         if result is None:
             raise http_exception.ResourceNotFoundException()
 
@@ -241,10 +244,7 @@ async def updateOrderDetails(
 
     orderDetailsExists = await order_details_repo.findOne({"order_id": order_id})
     if orderDetailsExists is None:
-        new_Order_details = OrderDetails(
-            order_id=order_id,
-            product_details=[]
-        )
+        new_Order_details = OrderDetails(order_id=order_id, product_details=[])
         await order_details_repo.new(new_Order_details)
 
     tasks = []

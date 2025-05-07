@@ -59,7 +59,11 @@ class PageRequest(BaseModel):
 
 class Meta(Page):
     total: int
-    unique: List[Any]
+    unique: List[Any] = None  # Optional field with default None
+    purchase_value: float = None  # Optional field with default None
+    sale_value: float = None  # Optional field with default None
+    positive_stock: int = None  # Optional field with default None
+    low_stock: int = None  # Optional field with default None
 
 
 class PaginatedResponse(BaseModel):

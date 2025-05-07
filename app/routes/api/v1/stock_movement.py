@@ -31,7 +31,7 @@ async def getAllStockMovement(
     endDate: str = None,
     movement_type: str = None,
     page_no: int = Query(1, ge=1),
-    limit: int = Query(12, le=24),
+    limit: int = Query(10, le=30),
     sortField: str = "created_at",
     sortOrder: SortingOrder = SortingOrder.DESC,
 ):
