@@ -29,7 +29,7 @@ async def getProductStock(
     category: str = None,
     state: str = None,
     page_no: int = Query(1, ge=1),
-    limit: int = Query(12, le=24),
+    limit: int = Query(10, le=50),
     sortField: str = "created_at",
     sortOrder: SortingOrder = SortingOrder.DESC,
 ):

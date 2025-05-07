@@ -3,6 +3,7 @@ from fastapi import UploadFile, File
 from app.database.repositories.extraction import extraction_tools
 from app.routes.api.v1.orders import createUserOrders,createOrdersDetails
 from app.database.models.Order_Details import OrderDetails,Orders
+from app.database.models.Orders import OrderStatus, Orders1, OrdersCreate
 from app.schema.token import TokenData
 import app.http_exception as http_exception
 from app.oauth2 import get_current_user
@@ -30,11 +31,11 @@ async def save_extracted_data_to_database(
     order_create_instance = OrdersCreate(
         stockist_id=data["stockist_id"],
         order_date=data["date"],
-        total_amount=data["date"]
+        total_amount=data["total"]
     )
     response = await createUserOrders(
         order=order_create_instance,
-        status = "Pending",
+        status = OrderStatus.PENDING,
         current_user = current_user
     )
     order_id = response["data"]
