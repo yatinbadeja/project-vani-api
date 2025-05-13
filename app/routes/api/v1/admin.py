@@ -610,6 +610,17 @@ async def get_analytics(
         }
         for i in range(12)
     ]
+    sales_trends_month_wise_out_chemist = response[10]
+    sales_trends_month_wise_in_chemist = response[11]
+    _TopMonths = [
+        {
+            "id": str(i + 1),
+            "name": month_names[i],
+            "totalSales": sales_trends_month_wise_out_chemist["data"][i],
+            "stockPurchased": sales_trends_month_wise_in_chemist["data"][i]
+        }
+        for i in range(12)
+    ]
     
     return{
         "total_sales_value_chemist_out":response[0][0]["total_amount"],
@@ -621,8 +632,7 @@ async def get_analytics(
         "sales_trends_month_wise":TopMonths,
         "category_wise":response[8],
         "stock_level":response[9],
-        "chemist_wise_total_sales_out":response[10],
-        "chemist_wise_total_sales_in":response[11]
+        "chemist_wise_total_sales":_TopMonths
     }
     
     
