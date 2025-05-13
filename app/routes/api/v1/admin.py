@@ -12,6 +12,8 @@ from app.database.repositories.user import user_repo
 from app.utils.generatePassword import generatePassword
 from app.utils.hashing import hash_password
 import re
+from app.database.repositories.Stock_Movement import stock_movement_repo
+import asyncio
 from app.utils.cloudinary_client import cloudinary_client
 from app.utils.mailer_module import template
 from app.database.models.user import UserCreate
@@ -67,7 +69,7 @@ async def create_user(
     "/view/all/stockist", response_class=ORJSONResponse, status_code=status.HTTP_200_OK
 )
 async def view_stockist_user(
-    current_user: TokenData = Depends(get_current_user),
+    # current_user: TokenData = Depends(get_current_user),
     search: str = None,
     state: str = None,
     page_no: int = Query(1, ge=1),
@@ -75,8 +77,8 @@ async def view_stockist_user(
     sortField: str = "created_at",
     sortOrder: SortingOrder = SortingOrder.DESC,
 ):
-    if current_user.user_type != "admin" and current_user.user_type != "user":
-        raise http_exception.CredentialsInvalidException()
+    # if current_user.user_type != "admin" and current_user.user_type != "user":
+    #     raise http_exception.CredentialsInvalidException()
 
     page = Page(page=page_no, limit=limit)
     sort = Sort(sort_field=sortField, sort_order=sortOrder)
@@ -516,3 +518,111 @@ async def getStockistShops(
 #         "success": True,
 #         "message": "Product Updated Successfully",
 #     }
+from app.database.repositories.Product_Stock import product_stock_repo
+@admin.get("/get/analytics",response_class=ORJSONResponse)
+async def get_analytics(
+    # current_user : TokenData = Depends(get_current_user)
+    month : int = "",
+    year : int = ""
+):
+    # if current_user.user_type != "user":
+    #     raise http_exception.CredentialsInvalidException()
+    user_id = "e0c7d908-4a0c-47da-82dd-b6e77fae7dbb"
+    response = await asyncio.gather(
+        stock_movement_repo.get_total_sales(chemist_id=user_id,movement="OUT"),
+        stock_movement_repo.get_total_sales(chemist_id=user_id,movement="IN"),
+        product_stock_repo.product_stock_movement(chemist_id=user_id),
+        product_stock_repo.return_pending_stock_amount(chemist_id=user_id),
+        product_stock_repo._return_pending_stock_amount(chemist_id=user_id),
+        stock_movement_repo.get_sales_trends(chemist_id=user_id,movement="OUT",month=month,year=year),
+        stock_movement_repo.get_sales_trends_mont_wise(chemist_id=user_id,movement="OUT",month=month,year=year),
+        stock_movement_repo.get_sales_trends_mont_wise(chemist_id=user_id,movement="IN",month=month,year=year),
+        stock_movement_repo.get_total_sales_category(chemist_id=user_id,movement="OUT",month=month,year= year),
+        product_stock_repo.group_products_by_stock_level(chemist_id=user_id)
+    )
+    print(response[5])
+    
+    month_names = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    sales_trends_month_wise_out = response[6]
+    sales_trends_month_wise_in = response[7]
+    TopMonths = [
+        {
+            "id": str(i + 1),
+            "name": month_names[i],
+            "totalSales": sales_trends_month_wise_out["data"][i],
+            "stockPurchased": sales_trends_month_wise_in["data"][i]
+        }
+        for i in range(12)
+    ]
+    
+    return{
+        "total_sales_value_chemist_out":response[0][0]["total_amount"],
+        "total_sales_value_chemist_in":response[1][0]["total_amount"],
+        "remaining_stock":response[2][0]["_amount"],
+        "return_pending_stock_amount":response[3][0]["_amount"],
+        "_return_pending_stock_amount":response[4][0]["_amount"] if response[4] != [] else 0,
+        "sales_trends":response[5],
+        "sales_trends_month_wise":TopMonths,
+        "category_wise":response[8],
+        "stock_level":response[9]
+    }
+    
+@admin.get("/get/analytics/admin",response_class=ORJSONResponse)
+async def get_analytics(
+    # current_user : TokenData = Depends(get_current_user)
+    month : int = "",
+    year : int = ""
+):
+    # if current_user.user_type != "user":
+    #     raise http_exception.CredentialsInvalidException()
+    user_id = ""
+    response = await asyncio.gather(
+        stock_movement_repo.get_total_sales(chemist_id=user_id,movement="OUT"),
+        stock_movement_repo.get_total_sales(chemist_id=user_id,movement="IN"),
+        product_stock_repo.product_stock_movement(chemist_id=user_id),
+        product_stock_repo.return_pending_stock_amount(chemist_id=user_id),
+        product_stock_repo._return_pending_stock_amount(chemist_id=user_id),
+        stock_movement_repo.get_sales_trends(chemist_id=user_id,movement="OUT",month=month,year=year),
+        stock_movement_repo.get_sales_trends_mont_wise(chemist_id=user_id,movement="OUT",month=month,year=year),
+        stock_movement_repo.get_sales_trends_mont_wise(chemist_id=user_id,movement="IN",month=month,year=year),
+        stock_movement_repo.get_total_sales_category(chemist_id=user_id,movement="OUT",month=month,year= year),
+        product_stock_repo.group_products_by_stock_level(chemist_id=user_id),
+        stock_movement_repo.get_total_sales_chemist_wise(chemist_id=user_id,movement="OUT"),
+        stock_movement_repo.get_total_sales_chemist_wise(chemist_id=user_id,movement="IN")
+    )
+    print(response[5])
+    
+    month_names = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    sales_trends_month_wise_out = response[6]
+    sales_trends_month_wise_in = response[7]
+    TopMonths = [
+        {
+            "id": str(i + 1),
+            "name": month_names[i],
+            "totalSales": sales_trends_month_wise_out["data"][i],
+            "stockPurchased": sales_trends_month_wise_in["data"][i]
+        }
+        for i in range(12)
+    ]
+    
+    return{
+        "total_sales_value_chemist_out":response[0][0]["total_amount"],
+        "total_sales_value_chemist_in":response[1][0]["total_amount"],
+        "remaining_stock":response[2][0]["_amount"],
+        "return_pending_stock_amount":response[3][0]["_amount"],
+        "_return_pending_stock_amount":response[4][0]["_amount"] if response[4] != [] else 0,
+        "sales_trends":response[5],
+        "sales_trends_month_wise":TopMonths,
+        "category_wise":response[8],
+        "stock_level":response[9],
+        "chemist_wise_total_sales_out":response[10],
+        "chemist_wise_total_sales_in":response[11]
+    }
+    
+    

@@ -96,5 +96,29 @@ class ProductRepo(BaseMongoDbCrud[ProductDB]):
             ),
         )
 
+    async def group_products_by_stock_level(self,chemist_id:str):
+        pipeline = [
+            {
+                "$set": {
+                    "stock_level": {
+                        "$switch": {
+                            "branches": [
+                                { "case": { "$lte": ["$quantity", 10] }, "then": "Low" },
+                                { "case": { "$gte": ["$quantity", 200] }, "then": "Overstock" }
+                            ],
+                            "default": "Medium"
+                        }
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$stock_level",
+                    "count": { "$sum": 1 }
+                }
+            }
+        ]
 
+        return await self.collection.aggregate(pipeline).to_list(None)
+        
 product_repo = ProductRepo()

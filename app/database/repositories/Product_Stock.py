@@ -315,5 +315,197 @@ class ProductStockRepo(BaseMongoDbCrud):
             ),
         )
 
+    async def product_stock_movement(self,chemist_id:str):
+        pipeline = [{
+                "$match":{
+                    "chemist_id":chemist_id
+                }
+            }] if chemist_id != "" else []
+        pipeline.extend([
+            {
+                "$lookup":{
+                    "from":"Product",
+                    "localField":"product_id",
+                    "foreignField":"_id",
+                    "as":"Product"
+                }
+            },
+            {
+                "$set":{
+                    "Product":{
+                        "$arrayElemAt":["$Product",0]
+                    }
+                }
+            },
+            {
+                "$set":{
+                    "amount":{
+                        "$multiply":["$available_quantity","$Product.price"]
+                    }
+                }
+            },
+            {
+                "$group":{
+                    "_id":None,
+                    "_amount":{
+                        "$sum":"$amount"
+                    }
+                }
+            }
+        ])
+        return await self.collection.aggregate(pipeline=pipeline).to_list(None)
+
+    async def return_pending_stock_amount(self,chemist_id:str):
+        import datetime
+        time = datetime.datetime.now() - datetime.timedelta(days=180)
+        pipeline = [{
+                "$match":{
+                    "chemist_id":chemist_id
+                }
+            }] if chemist_id != "" else []
+        pipeline.extend([
+            
+            {
+                "$lookup":{
+                    "from":"Product",
+                    "localField":"product_id",
+                    "foreignField":"_id",
+                    "as":"Product"
+                }
+            },
+            {
+                "$set":{
+                    "Product":{
+                        "$arrayElemAt":["$Product",0]
+                    }
+                }
+            },
+            {
+                "$set":{
+                    "date":"$Product.expiry_date"
+                }
+            },
+            {
+                "$match":{
+                    "date":{
+                        "$gte":time,
+                        "$lte":datetime.datetime.now()  
+                    }
+                }
+            },
+            {
+                "$set":{
+                    "amount":{
+                        "$multiply":["$available_quantity","$Product.price"]
+                    }
+                }
+            },
+            {
+                "$group":{
+                    "_id":None,
+                    "_amount":{
+                        "$sum":"$amount"
+                    }
+                }
+            }
+        ])
+        return await self.collection.aggregate(pipeline=pipeline).to_list(None)
+        
+    async def _return_pending_stock_amount(self,chemist_id:str):
+        import datetime
+        time = datetime.datetime.now() - datetime.timedelta(days=180)
+        pipeline = [{
+                "$match":{
+                    "chemist_id":chemist_id
+                }
+            }] if chemist_id != "" else []
+        
+        pipeline.extend([
+            
+            {
+                "$lookup":{
+                    "from":"Product",
+                    "localField":"product_id",
+                    "foreignField":"_id",
+                    "as":"Product"
+                }
+            },
+            {
+                "$set":{
+                    "Product":{
+                        "$arrayElemAt":["$Product",0]
+                    }
+                }
+            },
+            {
+                "$set":{
+                    "date":"$Product.expiry_date"
+                }
+            },
+            {
+                "$match":{
+                    "date":{
+                        "$lte":time
+                    }
+                }
+            },
+            {
+                "$set":{
+                    "amount":{
+                        "$multiply":["$available_quantity","$Product.price"]
+                    }
+                }
+            },
+            {
+                "$group":{
+                    "_id":None,
+                    "_amount":{
+                        "$sum":"$amount"
+                    }
+                }
+            }
+        ])
+        return await self.collection.aggregate(pipeline=pipeline).to_list(None)
+    
+    
+    async def group_products_by_stock_level(self, chemist_id: str):
+        pipeline = [{
+                "$match": {
+                    "chemist_id": chemist_id
+                }
+            }] if chemist_id != "" else []
+        pipeline.extend([
+            {
+                "$set": {
+                    "stock_level": {
+                        "$switch": {
+                            "branches": [
+                                { "case": { "$lte": ["$available_quantity", 10] }, "then": "Low" },
+                                { "case": { "$gte": ["$available_quantity", 200] }, "then": "Overstock" }
+                            ],
+                            "default": "Medium"
+                        }
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$stock_level",
+                    "count": { "$sum": 1 }
+                }
+            }
+        ])
+        results = await self.collection.aggregate(pipeline).to_list(None)
+
+        # Ensure all stock levels are present
+        stock_levels = { "Low": 0, "Medium": 0, "Overstock": 0 }
+        for entry in results:
+            stock_levels[entry["_id"]] = entry["count"]
+
+        return [
+            { "stock_level": key, "count": value }
+            for key, value in stock_levels.items()
+        ]
+
 
 product_stock_repo = ProductStockRepo()
