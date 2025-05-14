@@ -358,9 +358,11 @@ class ProductStockRepo(BaseMongoDbCrud):
     async def return_pending_stock_amount(self,chemist_id:str):
         import datetime
         time = datetime.datetime.now() - datetime.timedelta(days=180)
+        group_id = None
         pipeline = [{
                 "$match":{
                     "chemist_id":chemist_id
+                    
                 }
             }] if chemist_id != "" else []
         pipeline.extend([
@@ -402,7 +404,7 @@ class ProductStockRepo(BaseMongoDbCrud):
             },
             {
                 "$group":{
-                    "_id":None,
+                    "_id":"$chemist_id" if chemist_id != "" else None,
                     "_amount":{
                         "$sum":"$amount"
                     }

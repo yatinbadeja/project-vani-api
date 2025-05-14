@@ -3,7 +3,7 @@ from .crud.base_mongo_crud import BaseMongoDbCrud
 from app.database.models.Stock_Movement import StockMovement, StockMovementDB
 from app.database.models.Order_Details import OrderDetails
 from app.schema.enums import StockMovementTypeEnum
-from typing import List
+from typing import List, Union
 from app.database.repositories.Product_Stock import product_stock_repo
 from pymongo import UpdateOne
 from app.database.models.Product_Stock import ProductStock, ProductStockDB
@@ -319,7 +319,6 @@ class StockMovementRepo(BaseMongoDbCrud):
                 }
             })
             group_id = "$chemist_id"
-        # Regular chemist (individual)
         else:
             pipeline.append({
                 "$match": {
@@ -327,25 +326,37 @@ class StockMovementRepo(BaseMongoDbCrud):
                     "movement_type": movement
                 }
             })
-            group_id = None  # Single total, no grouping
+            group_id = None  # Single chemist total
 
         pipeline.extend([
             {
+                "$lookup": {
+                    "from": "Chemist",
+                    "localField": "chemist_id",
+                    "foreignField": "user_id",
+                    "as": "ChemistDetails"
+                }
+            },
+            {
                 "$set": {
-                    "amount": {
-                        "$multiply": ["$quantity", "$unit_price"]
-                    }
+                    "amount": { "$multiply": ["$quantity", "$unit_price"] }
                 }
             },
             {
                 "$group": {
                     "_id": group_id,
-                    "total_amount": {
-                        "$sum": "$amount"
-                    }
+                    "total_amount": { "$sum": "$amount" },
+                    "chemist_name_first_name": { "$first": { "$arrayElemAt": ["$ChemistDetails.name.first_name", 0] } },
+                    "chemist_name_last_name": { "$first": { "$arrayElemAt": ["$ChemistDetails.name.last_name", 0] } }
                 }
             }
         ])
+
+        # Debug print to check pipeline structure
+        print("Aggregation pipeline:", pipeline)
+
+        results = await self.collection.aggregate(pipeline).to_list(length=None)
+        return results
 
         return await self.collection.aggregate(pipeline=pipeline).to_list(None)
 
@@ -413,11 +424,19 @@ class StockMovementRepo(BaseMongoDbCrud):
         return results
 
 
-    async def get_sales_trends(self,chemist_id: str,movement:str,month:int,year:int):
+    async def get_sales_trends(self,chemist_id: str,movement:str,month:Union[int,None],year:int):
         import calendar
-        start_date = datetime(year=year,month=month,day=1)
-        last_day = calendar.monthrange(year, month)[1]
-        end_date = datetime(year=year,month=month,day=last_day)
+        start_date = None
+        end_date = None
+        last_day = None
+        if month == None:
+            start_date = datetime(year=year,month=1,day=1)
+            last_day = 31
+            end_date = datetime(year=year,month=12,day=31)
+        else:
+            start_date = datetime(year=year,month=month,day=1)
+            last_day = calendar.monthrange(year, month)[1]
+            end_date = datetime(year=year,month=month,day=last_day)
         pipeline = [
             {
                 "$match":{
@@ -461,7 +480,7 @@ class StockMovementRepo(BaseMongoDbCrud):
         result_dict = {entry['_id']: entry['total_amount'] for entry in result}
         full_month_data = []
         for day in range(1, last_day + 1):
-            date_obj = datetime(year, month, day)
+            date_obj = datetime(year, month if month != None else 1, day)
             date_str = date_obj.strftime("%Y-%m-%d")
             full_month_data.append({
                 "date": date_str,
@@ -483,6 +502,10 @@ class StockMovementRepo(BaseMongoDbCrud):
         start_date = datetime(year=year,month=month,day=1)
         last_day = calendar.monthrange(year, month)[1]
         end_date = datetime(year=year,month=month,day=last_day)
+        group = {
+                    "chemist_id"   : "$chemist_id",
+                    "$dateToString": { "format": "%Y-%m", "date": "$created_at" }
+                },
         pipeline = [{
                 "$match": {
                     "chemist_id": chemist_id,
@@ -503,7 +526,7 @@ class StockMovementRepo(BaseMongoDbCrud):
             },
             {
                 "$group": {
-                    "_id": {
+                    "_id":group if chemist_id != "" else {
                         "$dateToString": { "format": "%Y-%m", "date": "$created_at" }
                     },
                     "total_amount": {

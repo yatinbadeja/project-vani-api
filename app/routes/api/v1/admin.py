@@ -578,6 +578,7 @@ async def get_analytics(
 ):
     # if current_user.user_type != "user":
     #     raise http_exception.CredentialsInvalidException()
+    from collections import defaultdict
     user_id = ""
     response = await asyncio.gather(
         stock_movement_repo.get_total_sales(chemist_id=user_id,movement="OUT"),
@@ -610,18 +611,52 @@ async def get_analytics(
         }
         for i in range(12)
     ]
+    # Add sales data
     sales_trends_month_wise_out_chemist = response[10]
     sales_trends_month_wise_in_chemist = response[11]
-    _TopMonths = [
-        {
-            "id": str(i + 1),
-            "name": month_names[i],
-            "totalSales": sales_trends_month_wise_out_chemist["data"][i],
-            "stockPurchased": sales_trends_month_wise_in_chemist["data"][i]
-        }
-        for i in range(12)
-    ]
+
+    from collections import defaultdict
+    chemist_data = defaultdict(lambda: {"totalSales": 0.0, "stockPurchased": 0.0, "name": "","pendingStockAmount": 0.0,"remainingStock": 0.0,"data":[]})
+
+    # Add sales data
+    for entry in sales_trends_month_wise_out_chemist:
+        chemist_data[entry['_id']]["totalSales"] = entry["total_amount"]
+        chemist_data[entry['_id']]["name"] = (
+            entry.get("chemist_name_first_name", "") + " " + entry.get("chemist_name_last_name", "")
+        ).strip()
+
+    # Add purchase data
+    for entry in sales_trends_month_wise_in_chemist:
+        chemist_data[entry['_id']]["stockPurchased"] = entry["total_amount"]
+        if not chemist_data[entry['_id']]["name"]:
+            chemist_data[entry['_id']]["name"] = (
+                entry.get("chemist_name_first_name", "") + " " + entry.get("chemist_name_last_name", "")
+            ).strip()
+        chemist_data[entry["_id"]]["data"] = await stock_movement_repo.get_sales_trends(chemist_id=entry['_id'],movement="OUT",month=None,year=year)
     
+    for entry in response[3]:
+        chemist_data[entry['_id']]["pendingStockAmount"] = entry["_amount"]
+        if not chemist_data[entry['_id']]["name"]:
+            chemist_data[entry['_id']]["name"] = (
+                entry.get("chemist_name_first_name", "") + " " + entry.get("chemist_name_last_name", "")
+            ).strip()
+            
+    for entry in response[4]:
+        chemist_data[entry['_id']]["remainingStock"] = entry["_amount"]
+        if not chemist_data[entry['_id']]["name"]:
+            chemist_data[entry['_id']]["name"] = (
+                entry.get("chemist_name_first_name", "") + " " + entry.get("chemist_name_last_name", "")
+            ).strip()
+    
+    # Convert to list of dicts
+    grouped_chemist_data = [
+        {"chemistId": k, **v} for k, v in chemist_data.items()
+    ]
+
+    # Sort by totalSales
+    grouped_chemist_data.sort(key=lambda x: x["totalSales"], reverse=True)
+
+    # Output
     return{
         "total_sales_value_chemist_out":response[0][0]["total_amount"],
         "total_sales_value_chemist_in":response[1][0]["total_amount"],
@@ -632,7 +667,8 @@ async def get_analytics(
         "sales_trends_month_wise":TopMonths,
         "category_wise":response[8],
         "stock_level":response[9],
-        "chemist_wise_total_sales":_TopMonths
+        "chemist_wise_total_sales":grouped_chemist_data,
+        
     }
     
     
