@@ -485,7 +485,7 @@ class ProductStockRepo(BaseMongoDbCrud):
                                 { "case": { "$lte": ["$available_quantity", 10] }, "then": "Low" },
                                 { "case": { "$gte": ["$available_quantity", 200] }, "then": "Overstock" }
                             ],
-                            "default": "Medium"
+                            "default": "Normal"
                         }
                     }
                 }
@@ -500,7 +500,7 @@ class ProductStockRepo(BaseMongoDbCrud):
         results = await self.collection.aggregate(pipeline).to_list(None)
 
         # Ensure all stock levels are present
-        stock_levels = { "Low": 0, "Medium": 0, "Overstock": 0 }
+        stock_levels = { "Low": 0, "Normal": 0, "Overstock": 0 }
         for entry in results:
             stock_levels[entry["_id"]] = entry["count"]
 

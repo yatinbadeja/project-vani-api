@@ -277,80 +277,62 @@ class StockMovementRepo(BaseMongoDbCrud):
             ),
         )
 
-
-    async def get_total_sales(self,chemist_id: str,movement:str):
-        print(chemist_id)
-        print(ENV_PROJECT.MONGO_URI)
-        pipeline = [{
-                "$match":{
-                    "chemist_id":chemist_id,
-                    "movement_type":movement
-                }
-            }] if chemist_id != "" else []
-        pipeline.extend([ 
-            {
-                "$set":{
-                    "amount":{
-                        "$multiply":["$quantity","$unit_price"]
-                    }
-                }
-            },
-            {
-                "$group":{
-                    "_id":"$id",
-                    "total_amount":{
-                        "$sum":"$amount"
-                    }
-                }
-            }
-        ])
+    async def get_total_sales(self, chemist_id: str, movement: str):
+        pipeline = (
+            [{"$match": {"chemist_id": chemist_id, "movement_type": movement}}]
+            if chemist_id != ""
+            else []
+        )
+        pipeline.extend(
+            [
+                {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
+                {"$group": {"_id": "$id", "total_amount": {"$sum": "$amount"}}},
+            ]
+        )
         return await self.collection.aggregate(pipeline=pipeline).to_list(None)
-    
+
     async def get_total_sales_chemist_wise(self, chemist_id: str, movement: str):
-        print("Chemist ID:", chemist_id)
-        print("Mongo URI:", ENV_PROJECT.MONGO_URI)
 
         pipeline = []
 
         if chemist_id == "":
-            pipeline.append({
-                "$match": {
-                    "movement_type": movement
-                }
-            })
+            pipeline.append({"$match": {"movement_type": movement}})
             group_id = "$chemist_id"
         else:
-            pipeline.append({
-                "$match": {
-                    "chemist_id": chemist_id,
-                    "movement_type": movement
-                }
-            })
+            pipeline.append(
+                {"$match": {"chemist_id": chemist_id, "movement_type": movement}}
+            )
             group_id = None  # Single chemist total
 
-        pipeline.extend([
-            {
-                "$lookup": {
-                    "from": "Chemist",
-                    "localField": "chemist_id",
-                    "foreignField": "user_id",
-                    "as": "ChemistDetails"
-                }
-            },
-            {
-                "$set": {
-                    "amount": { "$multiply": ["$quantity", "$unit_price"] }
-                }
-            },
-            {
-                "$group": {
-                    "_id": group_id,
-                    "total_amount": { "$sum": "$amount" },
-                    "chemist_name_first_name": { "$first": { "$arrayElemAt": ["$ChemistDetails.name.first_name", 0] } },
-                    "chemist_name_last_name": { "$first": { "$arrayElemAt": ["$ChemistDetails.name.last_name", 0] } }
-                }
-            }
-        ])
+        pipeline.extend(
+            [
+                {
+                    "$lookup": {
+                        "from": "Chemist",
+                        "localField": "chemist_id",
+                        "foreignField": "user_id",
+                        "as": "ChemistDetails",
+                    }
+                },
+                {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
+                {
+                    "$group": {
+                        "_id": group_id,
+                        "total_amount": {"$sum": "$amount"},
+                        "chemist_name_first_name": {
+                            "$first": {
+                                "$arrayElemAt": ["$ChemistDetails.name.first_name", 0]
+                            }
+                        },
+                        "chemist_name_last_name": {
+                            "$first": {
+                                "$arrayElemAt": ["$ChemistDetails.name.last_name", 0]
+                            }
+                        },
+                    }
+                },
+            ]
+        )
 
         # Debug print to check pipeline structure
         print("Aggregation pipeline:", pipeline)
@@ -360,196 +342,238 @@ class StockMovementRepo(BaseMongoDbCrud):
 
         return await self.collection.aggregate(pipeline=pipeline).to_list(None)
 
-    
-    
-    async def get_total_sales_category(self, chemist_id: str, movement: str, month: int, year: int):
+    async def get_total_sales_category(
+        self, chemist_id: str, movement: str, month: int, year: int
+    ):
         import calendar
         from datetime import datetime
 
         start_date = datetime(year=year, month=month, day=1)
         last_day = calendar.monthrange(year, month)[1]
         end_date = datetime(year=year, month=month, day=last_day)
-        pipeline = [
-            {
-                "$match": {
-                    "chemist_id": chemist_id,
-                    "movement_type": movement,
-                    "created_at": {
-                        "$gte": start_date,
-                        "$lte": end_date
+        pipeline = (
+            [
+                {
+                    "$match": {
+                        "chemist_id": chemist_id,
+                        "movement_type": movement,
+                        "created_at": {"$gte": start_date, "$lte": end_date},
+                    }
+                },
+            ]
+            if chemist_id != ""
+            else []
+        )
+        pipeline.extend(
+            [
+                {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
+                {
+                    "$lookup": {
+                        "from": "Product",
+                        "localField": "product_id",
+                        "foreignField": "_id",
+                        "as": "productDetails",
+                        "pipeline": [{"$project": {"category": 1}}],
+                    }
+                },
+                {"$set": {"productDetails": {"$arrayElemAt": ["$productDetails", 0]}}},
+                {
+                    "$group": {
+                        "_id": "$productDetails.category",
+                        "total_amount": {"$sum": "$amount"},
+                    }
+                },
+                {
+                    "$project": {
+                        "label": "$_id",
+                        "_id": 0,
+                        "total_amount": 1
                     }
                 }
-            },
-        ] if chemist_id != "" else []
-        pipeline.extend([
-            {
-                "$set": {
-                    "amount": {
-                        "$multiply": ["$quantity", "$unit_price"]
-                    }
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "Product",
-                    "localField": "product_id",
-                    "foreignField": "_id",
-                    "as": "productDetails",
-                    "pipeline": [
-                        { "$project": { "category": 1 } }
-                    ]
-                }
-            },
-            {
-                "$set": {
-                    "productDetails": { "$arrayElemAt": ["$productDetails", 0] }
-                }
-            },
-            {
-                "$group": {
-                    "_id": "$productDetails.category",
-                    "total_amount": { "$sum": "$amount" }
-                }
-            }
-        ])
+            ]
+        )
         results = await self.collection.aggregate(pipeline=pipeline).to_list(None)
 
         # Compute grand total
-        grand_total = sum(item['total_amount'] for item in results)
+        grand_total = sum(item["total_amount"] for item in results)
 
         # Add percentage
         for item in results:
-            item["percentage"] = round((item["total_amount"] / grand_total) * 100, 2) if grand_total > 0 else 0.0
+            item["value"] = (
+                round((item["total_amount"] / grand_total) * 100, 2)
+                if grand_total > 0
+                else 0.0
+            )
 
         return results
 
-
-    async def get_sales_trends(self,chemist_id: str,movement:str,month:Union[int,None],year:int):
+    async def get_sales_trends(
+        self, chemist_id: str, movement: str, month: Union[int, None], year: int
+    ):
         import calendar
+
         start_date = None
         end_date = None
         last_day = None
         if month == None:
-            start_date = datetime(year=year,month=1,day=1)
+            start_date = datetime(year=year, month=1, day=1)
             last_day = 31
-            end_date = datetime(year=year,month=12,day=31)
+            end_date = datetime(year=year, month=12, day=31)
         else:
-            start_date = datetime(year=year,month=month,day=1)
+            start_date = datetime(year=int(year), month=int(month), day=1)
             last_day = calendar.monthrange(year, month)[1]
-            end_date = datetime(year=year,month=month,day=last_day)
-        pipeline = [
-            {
-                "$match":{
-                    "chemist_id":chemist_id,
-                    "movement_type":movement,
-                    "created_at":{
-                        "$gte":start_date,
-                        "$lte":end_date
+            end_date = datetime(year=year, month=month, day=last_day)
+        pipeline = (
+            [
+                {
+                    "$match": {
+                        "chemist_id": chemist_id,
+                        "movement_type": movement,
+                        "created_at": {"$gte": start_date, "$lte": end_date},
                     }
-                }
-            },
-        ] if chemist_id != "" else []
-        pipeline.extend([
-            {
-                "$set":{
-                    "amount":{
-                        "$multiply":["$quantity","$unit_price"]
+                },
+            ]
+            if chemist_id != ""
+            else []
+        )
+        pipeline.extend(
+            [
+                {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
+                {
+                    "$group": {
+                        "_id": {
+                            "$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}
+                        },
+                        "total_amount": {"$sum": "$amount"},
                     }
-                }
-            },
-            {
-                "$group": {
-                    "_id": {
-                        "$dateToString": { "format": "%Y-%m-%d", "date": "$created_at" }
-                    },
-                    "total_amount": {
-                        "$sum": "$amount"
-                    }
-                }
-            }
-            # {
-            #     "$group":{
-            #         "_id":"$id",
-            #         "total_amount":{
-            #             "$sum":"$amount"
-            #         }
-            #     }
-            # }
-        ])
-        result =  await self.collection.aggregate(pipeline=pipeline).to_list(None)
-        result_dict = {entry['_id']: entry['total_amount'] for entry in result}
+                },
+                # {
+                #     "$group":{
+                #         "_id":"$id",
+                #         "total_amount":{
+                #             "$sum":"$amount"
+                #         }
+                #     }
+                # }
+            ]
+        )
+        result = await self.collection.aggregate(pipeline=pipeline).to_list(None)
+        result_dict = {entry["_id"]: entry["total_amount"] for entry in result}
         full_month_data = []
         for day in range(1, last_day + 1):
             date_obj = datetime(year, month if month != None else 1, day)
             date_str = date_obj.strftime("%Y-%m-%d")
-            full_month_data.append({
-                "date": date_str,
-                "total_amount": result_dict.get(date_str, 0)
-            })
+            full_month_data.append(
+                {"date": date_str, "total_amount": result_dict.get(date_str, 0)}
+            )
         data = [items["total_amount"] for items in full_month_data]
-        print(data)
-        return {
-            "month":month,
-            "year":year,
-            "data":data
-        }
-        
-    
+        print("data1", data)
+        return {"month": month, "year": year, "data": data}
 
-    async def get_sales_trends_mont_wise(self, chemist_id: str, movement: str, month: int = None, year: int = None):
-        # If only year is provided, calculate for full year
-        import calendar
-        start_date = datetime(year=year,month=month,day=1)
-        last_day = calendar.monthrange(year, month)[1]
-        end_date = datetime(year=year,month=month,day=last_day)
-        group = {
-                    "chemist_id"   : "$chemist_id",
-                    "$dateToString": { "format": "%Y-%m", "date": "$created_at" }
-                },
-        pipeline = [{
-                "$match": {
-                    "chemist_id": chemist_id,
-                    "movement_type": movement,
-                    "created_at": {
-                        "$gte": start_date,
-                        "$lte": end_date
-                    }
-                }
-            }] if chemist_id != "" else []
-        pipeline.extend([
-            {
-                "$set": {
-                    "amount": {
-                        "$multiply": ["$quantity", "$unit_price"]
-                    }
-                }
-            },
+    # async def get_sales_trends_mont_wise(
+    #     self, chemist_id: str, movement: str, month: int = None, year: int = None
+    # ):
+    #     # If only year is provided, calculate for full year
+    #     import calendar
+
+    #     start_date = datetime(year=year, month=month, day=1)
+    #     last_day = calendar.monthrange(year, month)[1]
+    #     end_date = datetime(year=year, month=month, day=last_day)
+    #     group = {
+    #         "chemist_id": "$chemist_id",
+    #         "month": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}},
+    #     }
+    #     pipeline = (
+    #         [
+    #             {
+    #                 "$match": {
+    #                     "chemist_id": chemist_id,
+    #                     "movement_type": movement,
+    #                     "created_at": {"$gte": start_date, "$lte": end_date},
+    #                 }
+    #             }
+    #         ]
+    #         if chemist_id != ""
+    #         else []
+    #     )
+    #     pipeline.extend(
+    #         [
+    #             {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
+    #             {
+    #                 "$group": {
+    #                     "_id": (
+    #                         group
+    #                         if chemist_id != ""
+    #                         else {
+    #                             "month": {
+    #                                 "$dateToString": {
+    #                                     "format": "%Y-%m",
+    #                                     "date": "$created_at",
+    #                                 }
+    #                             }
+    #                         }
+    #                     ),
+    #                     "amount": {"$sum": "$amount"}
+    #                 },
+    #             },
+    #         ]
+    #     )
+
+    #     result = await self.collection.aggregate(pipeline=pipeline).to_list(None)
+    #     print("result", result)
+    #     result_dict = {entry["_id"]: entry["amount"] for entry in result}
+
+    #     # Fill in all 12 months
+    #     full_year_data = []
+    #     for m in range(1, 13):
+    #         date_str = f"{year}-{m:02d}"
+    #         full_year_data.append(result_dict.get(date_str, 0))
+
+    #     return {"year": year, "data": full_year_data}  # List of 12 values, one per month
+    async def get_sales_trends_mont_wise(
+        self, chemist_id: str, movement: str, month: int = None, year: int = None
+    ):
+        from datetime import datetime
+
+        # Set full-year start and end
+        start_date = datetime(year=year, month=1, day=1)
+        end_date = datetime(year=year, month=12, day=31, hour=23, minute=59, second=59)
+
+        # Base match condition
+        match_condition = {
+            "movement_type": movement,
+            "created_at": {"$gte": start_date, "$lte": end_date},
+        }
+        if chemist_id:
+            match_condition["chemist_id"] = chemist_id
+
+        pipeline = [
+            {"$match": match_condition},
+            {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
             {
                 "$group": {
-                    "_id":group if chemist_id != "" else {
-                        "$dateToString": { "format": "%Y-%m", "date": "$created_at" }
+                    "_id": {
+                        "month": {
+                            "$dateToString": {"format": "%Y-%m", "date": "$created_at"}
+                        }
                     },
-                    "total_amount": {
-                        "$sum": "$amount"
-                    }
+                    "amount": {"$sum": "$amount"},
                 }
-            }
-        ])
+            },
+        ]
 
         result = await self.collection.aggregate(pipeline=pipeline).to_list(None)
-        result_dict = {entry['_id']: entry['total_amount'] for entry in result}
 
-        # Fill in all 12 months
+        # Convert result to dict like {'2025-01': 1000, '2025-02': 0, ...}
+        result_dict = {entry["_id"]["month"]: entry["amount"] for entry in result}
+
+        # Fill 12 months
         full_year_data = []
         for m in range(1, 13):
             date_str = f"{year}-{m:02d}"
             full_year_data.append(result_dict.get(date_str, 0))
 
-        return {
-            "year": year,
-            "data": full_year_data  # List of 12 values, one per month
-        }
+        return {"year": year, "data": full_year_data}
 
-    
 
 stock_movement_repo = StockMovementRepo()

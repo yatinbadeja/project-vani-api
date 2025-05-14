@@ -519,32 +519,52 @@ async def getStockistShops(
 #         "message": "Product Updated Successfully",
 #     }
 from app.database.repositories.Product_Stock import product_stock_repo
-@admin.get("/get/analytics",response_class=ORJSONResponse)
+
+
+@admin.get("/get/analytics", response_class=ORJSONResponse)
 async def get_analytics(
     # current_user : TokenData = Depends(get_current_user)
-    month : int = "",
-    year : int = ""
+    month: int = "",
+    year: int = "",
 ):
     # if current_user.user_type != "user":
     #     raise http_exception.CredentialsInvalidException()
     user_id = "e0c7d908-4a0c-47da-82dd-b6e77fae7dbb"
     response = await asyncio.gather(
-        stock_movement_repo.get_total_sales(chemist_id=user_id,movement="OUT"),
-        stock_movement_repo.get_total_sales(chemist_id=user_id,movement="IN"),
+        stock_movement_repo.get_total_sales(chemist_id=user_id, movement="OUT"),
+        stock_movement_repo.get_total_sales(chemist_id=user_id, movement="IN"),
         product_stock_repo.product_stock_movement(chemist_id=user_id),
         product_stock_repo.return_pending_stock_amount(chemist_id=user_id),
         product_stock_repo._return_pending_stock_amount(chemist_id=user_id),
-        stock_movement_repo.get_sales_trends(chemist_id=user_id,movement="OUT",month=month,year=year),
-        stock_movement_repo.get_sales_trends_mont_wise(chemist_id=user_id,movement="OUT",month=month,year=year),
-        stock_movement_repo.get_sales_trends_mont_wise(chemist_id=user_id,movement="IN",month=month,year=year),
-        stock_movement_repo.get_total_sales_category(chemist_id=user_id,movement="OUT",month=month,year= year),
-        product_stock_repo.group_products_by_stock_level(chemist_id=user_id)
+        stock_movement_repo.get_sales_trends(
+            chemist_id=user_id, movement="OUT", month=month, year=year
+        ),
+        stock_movement_repo.get_sales_trends_mont_wise(
+            chemist_id=user_id, movement="OUT", month=month, year=year
+        ),
+        stock_movement_repo.get_sales_trends_mont_wise(
+            chemist_id=user_id, movement="IN", month=month, year=year
+        ),
+        stock_movement_repo.get_total_sales_category(
+            chemist_id=user_id, movement="OUT", month=month, year=year
+        ),
+        product_stock_repo.group_products_by_stock_level(chemist_id=user_id),
     )
     print(response[5])
-    
+
     month_names = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
     ]
     sales_trends_month_wise_out = response[6]
     sales_trends_month_wise_in = response[7]
@@ -553,52 +573,79 @@ async def get_analytics(
             "id": str(i + 1),
             "name": month_names[i],
             "totalSales": sales_trends_month_wise_out["data"][i],
-            "stockPurchased": sales_trends_month_wise_in["data"][i]
+            "stockPurchased": sales_trends_month_wise_in["data"][i],
         }
         for i in range(12)
     ]
-    
-    return{
-        "total_sales_value_chemist_out":response[0][0]["total_amount"],
-        "total_sales_value_chemist_in":response[1][0]["total_amount"],
-        "remaining_stock":response[2][0]["_amount"],
-        "return_pending_stock_amount":response[3][0]["_amount"],
-        "_return_pending_stock_amount":response[4][0]["_amount"] if response[4] != [] else 0,
-        "sales_trends":response[5],
-        "sales_trends_month_wise":TopMonths,
-        "category_wise":response[8],
-        "stock_level":response[9]
+
+    return {
+        "success": True,
+        "data": {
+            "total_sales": response[0][0]["total_amount"],
+            "total_purchased": response[1][0]["total_amount"],
+            "remaining_stock": response[2][0]["_amount"],
+            "pending_returns": response[3][0]["_amount"],
+            "dead_stocks": response[4][0]["_amount"] if response[4] != [] else 0,
+            "sales_trends": response[5],
+            "top_month_sales": TopMonths,
+            "category_wise_percent": response[8],
+            "stock_level": response[9],
+        },
     }
-    
-@admin.get("/get/analytics/admin",response_class=ORJSONResponse)
+
+
+@admin.get("/get/analytics/admin", response_class=ORJSONResponse)
 async def get_analytics(
     # current_user : TokenData = Depends(get_current_user)
-    month : int = "",
-    year : int = ""
+    month: int = "",
+    year: int = "",
 ):
     # if current_user.user_type != "user":
     #     raise http_exception.CredentialsInvalidException()
     from collections import defaultdict
+
     user_id = ""
     response = await asyncio.gather(
-        stock_movement_repo.get_total_sales(chemist_id=user_id,movement="OUT"),
-        stock_movement_repo.get_total_sales(chemist_id=user_id,movement="IN"),
+        stock_movement_repo.get_total_sales(chemist_id=user_id, movement="OUT"),
+        stock_movement_repo.get_total_sales(chemist_id=user_id, movement="IN"),
         product_stock_repo.product_stock_movement(chemist_id=user_id),
         product_stock_repo.return_pending_stock_amount(chemist_id=user_id),
         product_stock_repo._return_pending_stock_amount(chemist_id=user_id),
-        stock_movement_repo.get_sales_trends(chemist_id=user_id,movement="OUT",month=month,year=year),
-        stock_movement_repo.get_sales_trends_mont_wise(chemist_id=user_id,movement="OUT",month=month,year=year),
-        stock_movement_repo.get_sales_trends_mont_wise(chemist_id=user_id,movement="IN",month=month,year=year),
-        stock_movement_repo.get_total_sales_category(chemist_id=user_id,movement="OUT",month=month,year= year),
+        stock_movement_repo.get_sales_trends(
+            chemist_id=user_id, movement="OUT", month=month, year=year
+        ),
+        stock_movement_repo.get_sales_trends_mont_wise(
+            chemist_id=user_id, movement="OUT", month=month, year=year
+        ),
+        stock_movement_repo.get_sales_trends_mont_wise(
+            chemist_id=user_id, movement="IN", month=month, year=year
+        ),
+        stock_movement_repo.get_total_sales_category(
+            chemist_id=user_id, movement="OUT", month=month, year=year
+        ),
         product_stock_repo.group_products_by_stock_level(chemist_id=user_id),
-        stock_movement_repo.get_total_sales_chemist_wise(chemist_id=user_id,movement="OUT"),
-        stock_movement_repo.get_total_sales_chemist_wise(chemist_id=user_id,movement="IN")
+        stock_movement_repo.get_total_sales_chemist_wise(
+            chemist_id=user_id, movement="OUT"
+        ),
+        stock_movement_repo.get_total_sales_chemist_wise(
+            chemist_id=user_id, movement="IN"
+        ),
     )
     print(response[5])
-    
+
     month_names = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
     ]
     sales_trends_month_wise_out = response[6]
     sales_trends_month_wise_in = response[7]
@@ -607,7 +654,7 @@ async def get_analytics(
             "id": str(i + 1),
             "name": month_names[i],
             "totalSales": sales_trends_month_wise_out["data"][i],
-            "stockPurchased": sales_trends_month_wise_in["data"][i]
+            "stockPurchased": sales_trends_month_wise_in["data"][i],
         }
         for i in range(12)
     ]
@@ -616,59 +663,77 @@ async def get_analytics(
     sales_trends_month_wise_in_chemist = response[11]
 
     from collections import defaultdict
-    chemist_data = defaultdict(lambda: {"totalSales": 0.0, "stockPurchased": 0.0, "name": "","pendingStockAmount": 0.0,"remainingStock": 0.0,"data":[]})
+
+    chemist_data = defaultdict(
+        lambda: {
+            "totalSales": 0.0,
+            "stockPurchased": 0.0,
+            "name": "",
+            "pendingStockAmount": 0.0,
+            "remainingStock": 0.0,
+            "data": [],
+        }
+    )
 
     # Add sales data
     for entry in sales_trends_month_wise_out_chemist:
-        chemist_data[entry['_id']]["totalSales"] = entry["total_amount"]
-        chemist_data[entry['_id']]["name"] = (
-            entry.get("chemist_name_first_name", "") + " " + entry.get("chemist_name_last_name", "")
+        chemist_data[entry["_id"]]["totalSales"] = entry["total_amount"]
+        chemist_data[entry["_id"]]["name"] = (
+            entry.get("chemist_name_first_name", "")
+            + " "
+            + entry.get("chemist_name_last_name", "")
         ).strip()
 
     # Add purchase data
     for entry in sales_trends_month_wise_in_chemist:
-        chemist_data[entry['_id']]["stockPurchased"] = entry["total_amount"]
-        if not chemist_data[entry['_id']]["name"]:
-            chemist_data[entry['_id']]["name"] = (
-                entry.get("chemist_name_first_name", "") + " " + entry.get("chemist_name_last_name", "")
+        chemist_data[entry["_id"]]["stockPurchased"] = entry["total_amount"]
+        if not chemist_data[entry["_id"]]["name"]:
+            chemist_data[entry["_id"]]["name"] = (
+                entry.get("chemist_name_first_name", "")
+                + " "
+                + entry.get("chemist_name_last_name", "")
             ).strip()
-        chemist_data[entry["_id"]]["data"] = await stock_movement_repo.get_sales_trends(chemist_id=entry['_id'],movement="OUT",month=None,year=year)
-    
+        chemist_data[entry["_id"]]["data"] = await stock_movement_repo.get_sales_trends(
+            chemist_id=entry["_id"], movement="OUT", month=None, year=year
+        )
+
     for entry in response[3]:
-        chemist_data[entry['_id']]["pendingStockAmount"] = entry["_amount"]
-        if not chemist_data[entry['_id']]["name"]:
-            chemist_data[entry['_id']]["name"] = (
-                entry.get("chemist_name_first_name", "") + " " + entry.get("chemist_name_last_name", "")
+        chemist_data[entry["_id"]]["pendingStockAmount"] = entry["_amount"]
+        if not chemist_data[entry["_id"]]["name"]:
+            chemist_data[entry["_id"]]["name"] = (
+                entry.get("chemist_name_first_name", "")
+                + " "
+                + entry.get("chemist_name_last_name", "")
             ).strip()
-            
+
     for entry in response[4]:
-        chemist_data[entry['_id']]["remainingStock"] = entry["_amount"]
-        if not chemist_data[entry['_id']]["name"]:
-            chemist_data[entry['_id']]["name"] = (
-                entry.get("chemist_name_first_name", "") + " " + entry.get("chemist_name_last_name", "")
+        chemist_data[entry["_id"]]["remainingStock"] = entry["_amount"]
+        if not chemist_data[entry["_id"]]["name"]:
+            chemist_data[entry["_id"]]["name"] = (
+                entry.get("chemist_name_first_name", "")
+                + " "
+                + entry.get("chemist_name_last_name", "")
             ).strip()
-    
+
     # Convert to list of dicts
-    grouped_chemist_data = [
-        {"chemistId": k, **v} for k, v in chemist_data.items()
-    ]
+    grouped_chemist_data = [{"chemistId": k, **v} for k, v in chemist_data.items()]
 
     # Sort by totalSales
     grouped_chemist_data.sort(key=lambda x: x["totalSales"], reverse=True)
 
     # Output
-    return{
-        "total_sales_value_chemist_out":response[0][0]["total_amount"],
-        "total_sales_value_chemist_in":response[1][0]["total_amount"],
-        "remaining_stock":response[2][0]["_amount"],
-        "return_pending_stock_amount":response[3][0]["_amount"],
-        "_return_pending_stock_amount":response[4][0]["_amount"] if response[4] != [] else 0,
-        "sales_trends":response[5],
-        "sales_trends_month_wise":TopMonths,
-        "category_wise":response[8],
-        "stock_level":response[9],
-        "chemist_wise_total_sales":grouped_chemist_data,
-        
+    return {
+        "success": True,
+        "data": {
+            "total_sales": response[0][0]["total_amount"],
+            "total_purchase": response[1][0]["total_amount"],
+            "remaining_stock": response[2][0]["_amount"],
+            "pending_stock": response[3][0]["_amount"],
+            "dead_stock": (response[4][0]["_amount"] if response[4] != [] else 0),
+            "sales_trends": response[5],
+            "sales_trends_month_wise": TopMonths,
+            "category_wise": response[8],
+            "stock_level": response[9],
+            "chemist_wise_total_sales": grouped_chemist_data,
+        },
     }
-    
-    
