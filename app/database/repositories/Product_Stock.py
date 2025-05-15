@@ -52,7 +52,12 @@ class ProductStockRepo(BaseMongoDbCrud):
 
         if search not in ["", None]:
             filter_params["$or"] = [
-                {"productDetails.product_name": {"$regex": f"^{search}", "$options": "i"}},
+                {
+                    "productDetails.product_name": {
+                        "$regex": f"^{search}",
+                        "$options": "i",
+                    }
+                },
                 {"productDetails.category": {"$regex": f"^{search}", "$options": "i"}},
             ]
 
@@ -67,7 +72,8 @@ class ProductStockRepo(BaseMongoDbCrud):
         }
 
         sort_field_mapped = sort_fields_mapping.get(
-            sort.sort_field, "productDetails.product_name")
+            sort.sort_field, "productDetails.product_name"
+        )
         sort_order_value = 1 if sort.sort_order == SortingOrder.ASC else -1
         sort_criteria = {sort_field_mapped: sort_order_value}
 
@@ -171,7 +177,9 @@ class ProductStockRepo(BaseMongoDbCrud):
                             "$group": {
                                 "_id": "$movement_type",
                                 "total_quantity": {"$sum": "$quantity"},
-                                "avg_price": {"$sum": {"$multiply":["$unit_price", "$quantity"]}},
+                                "avg_price": {
+                                    "$sum": {"$multiply": ["$unit_price", "$quantity"]}
+                                },
                             }
                         },
                     ],
@@ -301,6 +309,150 @@ class ProductStockRepo(BaseMongoDbCrud):
             }
         )
 
+        meta_pipeline = [
+            {"$match": filter_params},
+            {
+                "$lookup": {
+                    "from": "StockMovement",
+                    "let": {"prod_id": "$product_id"},
+                    "pipeline": [
+                        {
+                            "$match": {
+                                "$expr": {
+                                    "$and": [
+                                        {"$eq": ["$product_id", "$$prod_id"]},
+                                        {"$eq": ["$chemist_id", current_user_id]},
+                                        {"$in": ["$movement_type", ["IN", "OUT"]]},
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "$group": {
+                                "_id": "$movement_type",
+                                "total_quantity": {"$sum": "$quantity"},
+                                "total_value": {
+                                    "$sum": {"$multiply": ["$unit_price", "$quantity"]},
+                                },
+                            }
+                        },
+                    ],
+                    "as": "movementData",
+                }
+            },
+            {
+                "$addFields": {
+                    "in_quantity": {
+                        "$ifNull": [
+                            {
+                                "$first": {
+                                    "$map": {
+                                        "input": {
+                                            "$filter": {
+                                                "input": "$movementData",
+                                                "as": "m",
+                                                "cond": {"$eq": ["$$m._id", "IN"]},
+                                            }
+                                        },
+                                        "as": "x",
+                                        "in": "$$x.total_quantity",
+                                    }
+                                }
+                            },
+                            0,
+                        ]
+                    },
+                    "out_quantity": {
+                        "$ifNull": [
+                            {
+                                "$first": {
+                                    "$map": {
+                                        "input": {
+                                            "$filter": {
+                                                "input": "$movementData",
+                                                "as": "m",
+                                                "cond": {"$eq": ["$$m._id", "OUT"]},
+                                            }
+                                        },
+                                        "as": "x",
+                                        "in": "$$x.total_quantity",
+                                    }
+                                }
+                            },
+                            0,
+                        ]
+                    },
+                    "purchase_value": {
+                        "$ifNull": [
+                            {
+                                "$first": {
+                                    "$map": {
+                                        "input": {
+                                            "$filter": {
+                                                "input": "$movementData",
+                                                "as": "m",
+                                                "cond": {"$eq": ["$$m._id", "IN"]},
+                                            }
+                                        },
+                                        "as": "x",
+                                        "in": "$$x.total_value",
+                                    }
+                                }
+                            },
+                            0,
+                        ]
+                    },
+                    "sale_value": {
+                        "$ifNull": [
+                            {
+                                "$first": {
+                                    "$map": {
+                                        "input": {
+                                            "$filter": {
+                                                "input": "$movementData",
+                                                "as": "m",
+                                                "cond": {"$eq": ["$$m._id", "OUT"]},
+                                            }
+                                        },
+                                        "as": "x",
+                                        "in": "$$x.total_value",
+                                    }
+                                }
+                            },
+                            0,
+                        ]
+                    },
+                }
+            },
+            {
+                "$addFields": {
+                    "available_quantity": {"$subtract": ["$in_quantity", "$out_quantity"]}
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "purchase_value": {"$sum": "$purchase_value"},
+                    "sale_value": {"$sum": "$sale_value"},
+                    "positive_stock": {
+                        "$sum": {"$cond": [{"$gt": ["$available_quantity", 5]}, 1, 0]}
+                    },
+                    "low_stock": {
+                        "$sum": {"$cond": [{"$lt": ["$available_quantity", 5]}, 1, 0]}
+                    },
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "purchase_value": 1,
+                    "sale_value": 1,
+                    "positive_stock": 1,
+                    "low_stock": 1,
+                }
+            },
+        ]
+
         result = [doc async for doc in self.collection.aggregate(pipeline)]
         res = result[0]
 
@@ -308,205 +460,143 @@ class ProductStockRepo(BaseMongoDbCrud):
         count = res["count"][0]["count"] if len(res["count"]) > 0 else 0
         unique_categories = [entry["category"] for entry in res["unique_categories"]]
 
+        meta_result = [doc async for doc in self.collection.aggregate(meta_pipeline)]
+        meta_stats = meta_result[0] if len(meta_result) > 0 else {}
+
         return PaginatedResponse(
             docs=docs,
             meta=Meta(
-                **pagination.paging.model_dump(), total=count, unique=unique_categories
+                **pagination.paging.model_dump(),
+                total=count,
+                unique=unique_categories,
+                purchase_value=meta_stats.get("purchase_value", 0),
+                sale_value=meta_stats.get("sale_value", 0),
+                positive_stock=meta_stats.get("positive_stock", 0),
+                low_stock=meta_stats.get("low_stock", 0),
             ),
         )
 
-    async def product_stock_movement(self,chemist_id:str):
-        pipeline = [{
-                "$match":{
-                    "chemist_id":chemist_id
-                }
-            }] if chemist_id != "" else []
-        pipeline.extend([
-            {
-                "$lookup":{
-                    "from":"Product",
-                    "localField":"product_id",
-                    "foreignField":"_id",
-                    "as":"Product"
-                }
-            },
-            {
-                "$set":{
-                    "Product":{
-                        "$arrayElemAt":["$Product",0]
+    async def product_stock_movement(self, chemist_id: str):
+        pipeline = [{"$match": {"chemist_id": chemist_id}}] if chemist_id != "" else []
+        pipeline.extend(
+            [
+                {
+                    "$lookup": {
+                        "from": "Product",
+                        "localField": "product_id",
+                        "foreignField": "_id",
+                        "as": "Product",
                     }
-                }
-            },
-            {
-                "$set":{
-                    "amount":{
-                        "$multiply":["$available_quantity","$Product.price"]
+                },
+                {"$set": {"Product": {"$arrayElemAt": ["$Product", 0]}}},
+                {
+                    "$set": {
+                        "amount": {"$multiply": ["$available_quantity", "$Product.price"]}
                     }
-                }
-            },
-            {
-                "$group":{
-                    "_id":None,
-                    "_amount":{
-                        "$sum":"$amount"
-                    }
-                }
-            }
-        ])
+                },
+                {"$group": {"_id": None, "_amount": {"$sum": "$amount"}}},
+            ]
+        )
         return await self.collection.aggregate(pipeline=pipeline).to_list(None)
 
-    async def return_pending_stock_amount(self,chemist_id:str):
+    async def return_pending_stock_amount(self, chemist_id: str):
         import datetime
+
         time = datetime.datetime.now() - datetime.timedelta(days=180)
         group_id = None
-        pipeline = [{
-                "$match":{
-                    "chemist_id":chemist_id
-                    
-                }
-            }] if chemist_id != "" else []
-        pipeline.extend([
-            
-            {
-                "$lookup":{
-                    "from":"Product",
-                    "localField":"product_id",
-                    "foreignField":"_id",
-                    "as":"Product"
-                }
-            },
-            {
-                "$set":{
-                    "Product":{
-                        "$arrayElemAt":["$Product",0]
+        pipeline = [{"$match": {"chemist_id": chemist_id}}] if chemist_id != "" else []
+        pipeline.extend(
+            [
+                {
+                    "$lookup": {
+                        "from": "Product",
+                        "localField": "product_id",
+                        "foreignField": "_id",
+                        "as": "Product",
                     }
-                }
-            },
-            {
-                "$set":{
-                    "date":"$Product.expiry_date"
-                }
-            },
-            {
-                "$match":{
-                    "date":{
-                        "$gte":time,
-                        "$lte":datetime.datetime.now()  
+                },
+                {"$set": {"Product": {"$arrayElemAt": ["$Product", 0]}}},
+                {"$set": {"date": "$Product.expiry_date"}},
+                {"$match": {"date": {"$gte": time, "$lte": datetime.datetime.now()}}},
+                {
+                    "$set": {
+                        "amount": {"$multiply": ["$available_quantity", "$Product.price"]}
                     }
-                }
-            },
-            {
-                "$set":{
-                    "amount":{
-                        "$multiply":["$available_quantity","$Product.price"]
+                },
+                {
+                    "$group": {
+                        "_id": "$chemist_id" if chemist_id != "" else None,
+                        "_amount": {"$sum": "$amount"},
                     }
-                }
-            },
-            {
-                "$group":{
-                    "_id":"$chemist_id" if chemist_id != "" else None,
-                    "_amount":{
-                        "$sum":"$amount"
-                    }
-                }
-            }
-        ])
+                },
+            ]
+        )
         return await self.collection.aggregate(pipeline=pipeline).to_list(None)
-        
-    async def _return_pending_stock_amount(self,chemist_id:str):
+
+    async def _return_pending_stock_amount(self, chemist_id: str):
         import datetime
+
         time = datetime.datetime.now() - datetime.timedelta(days=180)
-        pipeline = [{
-                "$match":{
-                    "chemist_id":chemist_id
-                }
-            }] if chemist_id != "" else []
-        
-        pipeline.extend([
-            
-            {
-                "$lookup":{
-                    "from":"Product",
-                    "localField":"product_id",
-                    "foreignField":"_id",
-                    "as":"Product"
-                }
-            },
-            {
-                "$set":{
-                    "Product":{
-                        "$arrayElemAt":["$Product",0]
+        pipeline = [{"$match": {"chemist_id": chemist_id}}] if chemist_id != "" else []
+
+        pipeline.extend(
+            [
+                {
+                    "$lookup": {
+                        "from": "Product",
+                        "localField": "product_id",
+                        "foreignField": "_id",
+                        "as": "Product",
                     }
-                }
-            },
-            {
-                "$set":{
-                    "date":"$Product.expiry_date"
-                }
-            },
-            {
-                "$match":{
-                    "date":{
-                        "$lte":time
+                },
+                {"$set": {"Product": {"$arrayElemAt": ["$Product", 0]}}},
+                {"$set": {"date": "$Product.expiry_date"}},
+                {"$match": {"date": {"$lte": time}}},
+                {
+                    "$set": {
+                        "amount": {"$multiply": ["$available_quantity", "$Product.price"]}
                     }
-                }
-            },
-            {
-                "$set":{
-                    "amount":{
-                        "$multiply":["$available_quantity","$Product.price"]
-                    }
-                }
-            },
-            {
-                "$group":{
-                    "_id":None,
-                    "_amount":{
-                        "$sum":"$amount"
-                    }
-                }
-            }
-        ])
+                },
+                {"$group": {"_id": None, "_amount": {"$sum": "$amount"}}},
+            ]
+        )
         return await self.collection.aggregate(pipeline=pipeline).to_list(None)
-    
-    
+
     async def group_products_by_stock_level(self, chemist_id: str):
-        pipeline = [{
-                "$match": {
-                    "chemist_id": chemist_id
-                }
-            }] if chemist_id != "" else []
-        pipeline.extend([
-            {
-                "$set": {
-                    "stock_level": {
-                        "$switch": {
-                            "branches": [
-                                { "case": { "$lte": ["$available_quantity", 10] }, "then": "Low" },
-                                { "case": { "$gte": ["$available_quantity", 200] }, "then": "Overstock" }
-                            ],
-                            "default": "Normal"
+        pipeline = [{"$match": {"chemist_id": chemist_id}}] if chemist_id != "" else []
+        pipeline.extend(
+            [
+                {
+                    "$set": {
+                        "stock_level": {
+                            "$switch": {
+                                "branches": [
+                                    {
+                                        "case": {"$lte": ["$available_quantity", 10]},
+                                        "then": "Low",
+                                    },
+                                    {
+                                        "case": {"$gte": ["$available_quantity", 200]},
+                                        "then": "Overstock",
+                                    },
+                                ],
+                                "default": "Normal",
+                            }
                         }
                     }
-                }
-            },
-            {
-                "$group": {
-                    "_id": "$stock_level",
-                    "count": { "$sum": 1 }
-                }
-            }
-        ])
+                },
+                {"$group": {"_id": "$stock_level", "count": {"$sum": 1}}},
+            ]
+        )
         results = await self.collection.aggregate(pipeline).to_list(None)
 
         # Ensure all stock levels are present
-        stock_levels = { "Low": 0, "Normal": 0, "Overstock": 0 }
+        stock_levels = {"Low": 0, "Normal": 0, "Overstock": 0}
         for entry in results:
             stock_levels[entry["_id"]] = entry["count"]
 
         return [
-            { "stock_level": key, "count": value }
-            for key, value in stock_levels.items()
+            {"stock_level": key, "count": value} for key, value in stock_levels.items()
         ]
 
 
