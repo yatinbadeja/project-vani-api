@@ -50,23 +50,24 @@ class ProductStockRepo(BaseMongoDbCrud):
             "chemist_id": current_user_id,
         }
 
-        if search not in ["", None]:
-            filter_params["$or"] = [
-                {
-                    "productDetails.product_name": {
-                        "$regex": f"^{search}",
-                        "$options": "i",
-                    }
-                },
-                {"productDetails.category": {"$regex": f"^{search}", "$options": "i"}},
-            ]
 
-        if category not in ["", None]:
-            filter_params["category"] = category
+        # if search not in ["hello"]:
+        #     filter_params["$or"] = [
+        #         {
+        #             "productDetails.product_name": {
+        #                 "$regex": f"^{search}",
+        #                 "$options": "i",
+        #             }
+        #         },
+        #         {"productDetails.category": {"$regex": f"^{search}", "$options": "i"}},
+        #     ]
+
+        # if category not in ["hello"]:
+        #     filter_params["category"] = category
 
         sort_fields_mapping = {
             "product_name": "productDetails.product_name",
-            "category": "productDetails.category",
+            # "category": "productDetails.category",
             "state": "productDetails.state",
             "created_at": "created_at",  # Or another field if relevant
         }
@@ -86,7 +87,21 @@ class ProductStockRepo(BaseMongoDbCrud):
                     "localField": "product_id",
                     "foreignField": "_id",
                     "as": "productDetails",
-                    "pipeline": [
+                    "pipeline": (
+                        (
+                                [{"$match": {"category": category}}] if category else []
+                            ) +
+                            (
+                                [{
+                                    "$match": {
+                                        "$or": [
+                                            {"product_name": {"$regex": search, "$options": "i"}},
+                                            {"category": {"$regex": search, "$options": "i"}}
+                                        ]
+                                    }
+                                }] if search else []
+                            ) +
+                        [
                         {
                             "$project": {
                                 "product_name": 1,
@@ -101,10 +116,11 @@ class ProductStockRepo(BaseMongoDbCrud):
                                 "updated_at": 1,
                             }
                         }
-                    ],
+                    ]
+                    ),
                 }
             },
-            {"$unwind": {"path": "$productDetails", "preserveNullAndEmptyArrays": True}},
+            {"$unwind": {"path": "$productDetails"}},
             # {
             #     "$lookup": {
             #         "from": "StockMovement",
