@@ -12,6 +12,7 @@ from app.database.repositories.user import user_repo
 from app.utils.generatePassword import generatePassword
 from app.utils.hashing import hash_password
 import re
+from app.database.repositories.Product_Stock import product_stock_repo
 from app.database.repositories.Stock_Movement import stock_movement_repo
 import asyncio
 from app.utils.cloudinary_client import cloudinary_client
@@ -408,128 +409,17 @@ async def getStockistShops(
     ).to_list(None)
     return {"success": True, "data": shops}
 
-
-# @admin.post(
-#     "/create/product", response_class=ORJSONResponse, status_code=status.HTTP_200_OK
-# )
-# async def createProduct(
-#     product_: ProductCreate,
-#     current_user: TokenData = Depends(get_current_user),
-# ):
-#     if current_user.user_type != "user" and current_user.user_type != "admin":
-#         raise http_exception.CredentialsInvalidException()
-
-#     product__ = product_.model_dump()
-#     await product_repo.new(product(**product__))
-
-#     return {"success": True, "message": "Product Created Successfully"}
-
-
-# @admin.get(
-#     "/view/all/product", response_class=ORJSONResponse, status_code=status.HTTP_200_OK
-# )
-# async def view_all_product(
-#     current_user: TokenData = Depends(get_current_user),
-#     search: str = None,
-#     category: str = None,
-#     page_no: int = Query(1, ge=1),
-#     limit: int = Query(12, le=24),
-#     sortField: str = "created_at",
-#     sortOrder: SortingOrder = SortingOrder.DESC,
-# ):
-#     if current_user.user_type != "admin":
-#         raise http_exception.CredentialsInvalidException()
-
-#     page = Page(page=page_no, limit=limit)
-#     sort = Sort(sort_field=sortField, sort_order=sortOrder)
-#     page_request = PageRequest(paging=page, sorting=sort)
-
-#     result = await product_repo.viewAllProduct(
-#         search=search, category=category, pagination=page_request, sort=sort
-#     )
-
-#     return {"success": True, "message": "Data Fetched Successfully...", "data": result}
-
-
-# @admin.get(
-#     "/get/product/{product_id}",
-#     response_class=ORJSONResponse,
-#     status_code=status.HTTP_200_OK,
-# )
-# async def getProduct(
-#     product_id: str,
-#     current_user: TokenData = Depends(get_current_user),
-# ):
-#     if current_user.user_type != "user" and current_user.user_type != "admin":
-#         raise http_exception.CredentialsInvalidException()
-
-#     product = await product_repo.findOne(
-#         {"_id": product_id}, {"created_at": 0, "updated_at": 0}
-#     )
-#     if not product:
-#         raise http_exception
-
-#     return {"success": True, "data": product}
-
-
-# @admin.delete(
-#     "/delete/product/{product_id}",
-#     response_class=ORJSONResponse,
-#     status_code=status.HTTP_200_OK,
-# )
-# async def deleteProduct(
-#     product_id: str,
-#     current_user: TokenData = Depends(get_current_user),
-# ):
-#     if current_user.user_type != "user" and current_user.user_type != "admin":
-#         raise http_exception.CredentialsInvalidException()
-
-#     product = await product_repo.findOne({"_id": product_id})
-#     if not product:
-#         raise http_exception.NotFoundException(detail="Product Not Found")
-
-#     await product_repo.deleteById(product_id)
-
-#     return {"success": True, "message": "Product Deleted Successfully"}
-
-
-# @admin.put(
-#     "/update/product/{product_id}",
-#     response_class=ORJSONResponse,
-#     status_code=status.HTTP_200_OK,
-# )
-# async def updateProduct(
-#     current_user: TokenData = Depends(get_current_user),
-#     product: ProductCreate = None,
-#     product_id: str = "",
-# ):
-#     if current_user.user_type != "user" and current_user.user_type != "admin":
-#         raise http_exception.CredentialsInvalidException()
-
-#     productExists = await product_repo.findOne({"_id": product_id})
-#     if productExists is None:
-#         raise http_exception.ResourceNotFoundException()
-
-#     updated_dict = {k: v for k, v in product.dict().items() if v not in [None, ""]}
-
-#     await product_repo.update_one({"_id": product_id}, {"$set": updated_dict})
-
-#     return {
-#         "success": True,
-#         "message": "Product Updated Successfully",
-#     }
-from app.database.repositories.Product_Stock import product_stock_repo
-
-
 @admin.get("/get/analytics", response_class=ORJSONResponse)
 async def get_analytics(
-    # current_user : TokenData = Depends(get_current_user)
+    current_user : TokenData = Depends(get_current_user),
     month: int = "",
     year: int = "",
 ):
-    # if current_user.user_type != "user":
-    #     raise http_exception.CredentialsInvalidException()
-    user_id = "e0c7d908-4a0c-47da-82dd-b6e77fae7dbb"
+    if current_user.user_type != "user":
+        raise http_exception.CredentialsInvalidException()
+    
+    user_id = current_user.user_id
+    
     response = await asyncio.gather(
         stock_movement_repo.get_total_sales(chemist_id=user_id, movement="OUT"),
         stock_movement_repo.get_total_sales(chemist_id=user_id, movement="IN"),
@@ -549,8 +439,11 @@ async def get_analytics(
             chemist_id=user_id, movement="OUT", month=month, year=year
         ),
         product_stock_repo.group_products_by_stock_level(chemist_id=user_id),
+        # Added: top 5 selling categories of all time
+        stock_movement_repo.get_top_category_monthly(
+            chemist_id=user_id, movement="OUT", month=month, year=year
+        ),
     )
-    print(response[5])
 
     month_names = [
         "January",
@@ -577,7 +470,6 @@ async def get_analytics(
         }
         for i in range(12)
     ]
-
     return {
         "success": True,
         "data": {
@@ -590,6 +482,7 @@ async def get_analytics(
             "top_month_sales": TopMonths,
             "category_wise_percent": response[8],
             "stock_level": response[9],
+            "top_5_categories_all_time": response[10],  
         },
     }
 
@@ -631,7 +524,6 @@ async def get_analytics(
             chemist_id=user_id, movement="IN"
         ),
     )
-    print(response[5])
 
     month_names = [
         "January",

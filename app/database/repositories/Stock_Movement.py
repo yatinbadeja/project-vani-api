@@ -340,7 +340,6 @@ class StockMovementRepo(BaseMongoDbCrud):
         results = await self.collection.aggregate(pipeline).to_list(length=None)
         return results
 
-        return await self.collection.aggregate(pipeline=pipeline).to_list(None)
 
     async def get_total_sales_category(
         self, chemist_id: str, movement: str, month: int, year: int
@@ -406,6 +405,105 @@ class StockMovementRepo(BaseMongoDbCrud):
             )
 
         return results
+    
+    async def get_top_category_monthly(
+        self, chemist_id: str, movement: str, month: int, year: int
+    ):
+        import calendar
+
+        # Calculate start and end dates for the year
+        start_date = datetime(year=year, month=1, day=1)
+        end_date = datetime(year=year, month=12, day=31, hour=23, minute=59, second=59)
+
+        # Pipeline to get total sales per category for the year
+        match_stage = {
+            "chemist_id": chemist_id,
+            "movement_type": movement,
+            "created_at": {"$gte": start_date, "$lte": end_date},
+        }
+        pipeline_top_categories = [
+            {"$match": match_stage},
+            {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
+            {
+                "$lookup": {
+                    "from": "Product",
+                    "localField": "product_id",
+                    "foreignField": "_id",
+                    "as": "productDetails",
+                    "pipeline": [{"$project": {"category": 1}}],
+                }
+            },
+            {"$set": {"category": {"$arrayElemAt": ["$productDetails.category", 0]}}},
+            {
+                "$group": {
+                    "_id": "$category",
+                    "total_amount": {"$sum": "$amount"},
+                }
+            },
+            {"$sort": {"total_amount": -1}},
+            {"$limit": 4},
+        ]
+        top_categories_result = await self.collection.aggregate(pipeline_top_categories).to_list(None)
+        top_categories = [entry["_id"] for entry in top_categories_result if entry["_id"] is not None]
+
+        # Compute total sales across all categories for the year
+        pipeline_total_sales = [
+            {"$match": match_stage},
+            {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
+            {
+                "$group": {
+                    "_id": None,
+                    "total_sales": {"$sum": "$amount"},
+                }
+            }
+        ]
+        total_sales_result = await self.collection.aggregate(pipeline_total_sales).to_list(None)
+        total_sales = total_sales_result[0]["total_sales"] if total_sales_result else 0
+
+        # Prepare monthly sales for each top category
+        data = []
+        for category in top_categories:
+            # Pipeline to get monthly sales for this category
+            pipeline_monthly = [
+                {"$match": match_stage},
+                {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
+                {
+                    "$lookup": {
+                        "from": "Product",
+                        "localField": "product_id",
+                        "foreignField": "_id",
+                        "as": "productDetails",
+                        "pipeline": [{"$project": {"category": 1, "product_name": 1}}],
+                    }
+                },
+                {"$set": {"productDetails": {"$arrayElemAt": ["$productDetails", 0]}}},
+                {"$match": {"productDetails.category": category}},
+                {
+                    "$group": {
+                        "_id": {
+                            "month": {"$month": "$created_at"},
+                        },
+                        "total_amount": {"$sum": "$amount"},
+                    }
+                },
+            ]
+            monthly_result = await self.collection.aggregate(pipeline_monthly).to_list(None)
+            # Map month to total_amount
+            month_to_amount = {entry["_id"]["month"]: entry["total_amount"] for entry in monthly_result}
+            # Fill all months with 0 if missing
+            monthly_data = [month_to_amount.get(m, 0) for m in range(1, 13)]
+
+            data.append({
+                "id": category,
+                "label": category.capitalize() if isinstance(category, str) else str(category),
+                "data": monthly_data,
+            })
+
+        return {
+            "year": year,
+            "total_sales": total_sales,
+            "data": data,
+        }
 
     async def get_sales_trends(
         self, chemist_id: str, movement: str, month: Union[int, None], year: int
@@ -467,69 +565,8 @@ class StockMovementRepo(BaseMongoDbCrud):
                 {"date": date_str, "total_amount": result_dict.get(date_str, 0)}
             )
         data = [items["total_amount"] for items in full_month_data]
-        print("data1", data)
         return {"month": month, "year": year, "data": data}
 
-    # async def get_sales_trends_mont_wise(
-    #     self, chemist_id: str, movement: str, month: int = None, year: int = None
-    # ):
-    #     # If only year is provided, calculate for full year
-    #     import calendar
-
-    #     start_date = datetime(year=year, month=month, day=1)
-    #     last_day = calendar.monthrange(year, month)[1]
-    #     end_date = datetime(year=year, month=month, day=last_day)
-    #     group = {
-    #         "chemist_id": "$chemist_id",
-    #         "month": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}},
-    #     }
-    #     pipeline = (
-    #         [
-    #             {
-    #                 "$match": {
-    #                     "chemist_id": chemist_id,
-    #                     "movement_type": movement,
-    #                     "created_at": {"$gte": start_date, "$lte": end_date},
-    #                 }
-    #             }
-    #         ]
-    #         if chemist_id != ""
-    #         else []
-    #     )
-    #     pipeline.extend(
-    #         [
-    #             {"$set": {"amount": {"$multiply": ["$quantity", "$unit_price"]}}},
-    #             {
-    #                 "$group": {
-    #                     "_id": (
-    #                         group
-    #                         if chemist_id != ""
-    #                         else {
-    #                             "month": {
-    #                                 "$dateToString": {
-    #                                     "format": "%Y-%m",
-    #                                     "date": "$created_at",
-    #                                 }
-    #                             }
-    #                         }
-    #                     ),
-    #                     "amount": {"$sum": "$amount"}
-    #                 },
-    #             },
-    #         ]
-    #     )
-
-    #     result = await self.collection.aggregate(pipeline=pipeline).to_list(None)
-    #     print("result", result)
-    #     result_dict = {entry["_id"]: entry["amount"] for entry in result}
-
-    #     # Fill in all 12 months
-    #     full_year_data = []
-    #     for m in range(1, 13):
-    #         date_str = f"{year}-{m:02d}"
-    #         full_year_data.append(result_dict.get(date_str, 0))
-
-    #     return {"year": year, "data": full_year_data}  # List of 12 values, one per month
     async def get_sales_trends_mont_wise(
         self, chemist_id: str, movement: str, month: int = None, year: int = None
     ):
